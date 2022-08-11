@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from typing import List
 from cvxpy.expressions.expression import Expression
 from cvxpy.constraints.constraint import Constraint
-from pyzpc import ZPC, Data, SystemZonotopes
+from szddpc import SZDDPC, Data, SystemZonotopes
 from utils import generate_trajectories
 from pydatadrivenreachability import Zonotope
 
@@ -56,26 +56,28 @@ zonotopes = SystemZonotopes(X0, U, Y, W, V, AV)
 
 num_trajectories = 5
 num_steps_per_trajectory = 200
-horizon = 3
+horizon =4
 
 data = generate_trajectories(sys, X0, U, W, V, num_trajectories, num_steps_per_trajectory)
 
 # Build DPC
-zpc = ZPC(data)
+szddpc = SZDDPC(data)
 
 x = X0.sample().flatten()
 
 
 trajectory = [x]
-problem = zpc.build_problem(zonotopes, horizon, loss_callback, constraints_callback)
+problem = szddpc.build_problem(zonotopes, horizon, loss_callback, constraints_callback)
 for n in range(100):
     print(f'Step {n}')
     #import pdb
     #pdb.set_trace()
     
-    result, info = zpc.solve(x, verbose=True,warm_start=True)
+    result, info = szddpc.solve(x, verbose=False,warm_start=True)
     u = info['u_optimal']
-    print(u)
+    #print(u)
+    #import pdb
+    #pdb.set_trace()
     z = sys.A @ x +  np.squeeze(sys.B *u[0]) + W.sample()
 
     # We assume C = I

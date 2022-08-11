@@ -1,4 +1,4 @@
-from .zpc import ZPC
+from .szddpc import SZDDPC
 from .utils import *
 
 __author__ = 'Alessio Russo - alessior@kth.se'

@@ -11,7 +11,7 @@ from pydatadrivenreachability import (
     Zonotope,
     CVXZonotope)
 
-from pyzpc.utils import (
+from szddpc.utils import (
     Data,
     DataDrivenDataset,
     SystemZonotopes,
@@ -21,7 +21,7 @@ import sys
 #sys.setrecursionlimit(10000)
 
 
-class ZPC(object):
+class SZDDPC(object):
     optimization_problem: Union[OptimizationProblem,None] = None
     dataset: DataDrivenDataset
     zonotopes: SystemZonotopes
@@ -118,7 +118,7 @@ class ZPC(object):
         Z = self.zonotopes.W + self.zonotopes.V + (-1 *self.zonotopes.Av)
 
         # Build variables
-        num_trajectories = 50
+        num_trajectories = 10
         y0 = cp.Parameter(shape=(self.dim_y))
         u = cp.Variable(shape=(horizon, self.dim_u))
         y = [cp.Variable(shape=(horizon + 1, self.dim_y)) for x in range(num_trajectories)]
@@ -127,7 +127,8 @@ class ZPC(object):
         beta_z = [cp.Variable(shape=(horizon, Z.num_generators)) for x in range(num_trajectories)]
         beta_y = [cp.Variable(shape=(horizon, self.zonotopes.Y.num_generators)) for x in range(num_trajectories)]
         gamma = cp.Variable(nonneg=True)
-
+        #import pdb
+        #pdb.set_trace()
         constraints = [
             beta_u >= -1.,
             beta_u <= 1.,
@@ -136,6 +137,8 @@ class ZPC(object):
 
         leftY = self.zonotopes.Y.interval.left_limit
         rightY = self.zonotopes.Y.interval.right_limit
+
+        R = []
 
         for k in range(num_trajectories):
             constraints.extend([
@@ -151,9 +154,22 @@ class ZPC(object):
             sys_A = sys_sample[:, :-self.dim_u]
             sys_B = sys_sample[:, -self.dim_u:]
 
+            #R.append([CVXZonotope(y0, np.zeros((self.dim_y, 1)))])
+
+
             for i in range(horizon):
                 print(f'{k}-{i}')
-                constraints.append(y[k][i+1] == sys_A @ y[k][i] + sys_B @ u[i] + znoise[k][i])
+                #R_ki = R[k][i]
+                #import pdb
+                #pdb.set_trace()
+                # Rnew: CVXZonotope = R[k][i] * sys_A + CVXZonotope(u[i], np.zeros((self.dim_u, 1))) * sys_B +  Z
+                # R[k].append(Rnew)
+                # Rinterval = Rnew.interval
+                constraints.append(y[k][i+1] == sys_A @ y[k][i] + sys_B @ u[i] + Z.sample()[0])#  znoise[k][i])
+                # constraints.extend([
+                #     Rinterval.right_limit <= rightY,
+                #     Rinterval.left_limit >= leftY
+                # ])
 
 
             _constraints = build_constraints(u, y[k]) if build_constraints is not None else (None, None)
@@ -183,7 +199,7 @@ class ZPC(object):
             raise Exception(f'Error while constructing the DeePC problem. Details: {e}')
 
         self.optimization_problem = OptimizationProblem(
-            variables = OptimizationProblemVariables(y0=y0, u=u, y=y, s_l=beta_y, s_u=gamma, beta_u=beta_u),
+            variables = OptimizationProblemVariables(y0=y0, u=u, y=y, s_l=beta_z, s_u=gamma, beta_u=beta_u),
             constraints = constraints,
             objective_function = problem_loss,
             problem = problem
@@ -228,6 +244,8 @@ class ZPC(object):
             pdb.set_trace()
             print(self.optimization_problem.problem.parameters)
             raise Exception('Problem is unbounded')
+
+        print(self.optimization_problem.variables.s_l[1].value)
 
         u_optimal = self.optimization_problem.variables.u.value
         info = {
