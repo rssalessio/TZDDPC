@@ -50,13 +50,13 @@ X0 = Zonotope([0] * dim_x, 0. * np.diag([1] * dim_x))
 U = Zonotope([1] * dim_u, 3 * np.diag([1] * dim_u))
 W = Zonotope([0] * dim_x, 0.005 * np.ones((dim_x, 1)))
 V = Zonotope([0] * dim_x, 0.002 * np.ones((dim_x, 1)))
-Y = Zonotope([1] * dim_x, np.diag(2*np.ones(dim_x)))
+Y = Zonotope([1] * dim_x, np.diag(0.1*np.ones(dim_x)))
 AV = V * sys.A
 zonotopes = SystemZonotopes(X0, U, Y, W, V, AV)
 
 num_trajectories = 5
 num_steps_per_trajectory = 200
-horizon =4
+horizon =10
 
 data = generate_trajectories(sys, X0, U, W, V, num_trajectories, num_steps_per_trajectory)
 
