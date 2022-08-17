@@ -74,7 +74,7 @@ class SZDDPC(object):
         self.dataset = DataDrivenDataset(Yp, Ym, Um)
         self.optimization_problem = None
 
-    def _build_zonotopes(self, zonotopes: SystemZonotopes):
+    def build_zonotopes(self, zonotopes: SystemZonotopes):
         """
         [Private method] Do not invoke directly.
         Builds all the zonotopes needed to solve ZPC. 
@@ -84,12 +84,14 @@ class SZDDPC(object):
             and V.dimension == W.dimension and Av.dimension == V.dimension and Y.dimension == X0.dimension, \
             'The zonotopes do not have the correct dimension'
         
+        self.optimization_problem = None
         self.zonotopes = zonotopes
         Mw = concatenate_zonotope(W, self.num_samples - 1)
         Mv = concatenate_zonotope(V, self.num_samples - 1)
         Mav = concatenate_zonotope(Av, self.num_samples - 1)
 
         self.Msigma = compute_IO_LTI_matrix_zonotope(self.dataset.Ym, self.dataset.Yp, self.dataset.Um, Mw, Mv, Mav)
+        return self.Msigma
 
     def build_problem(self,
             zonotopes: SystemZonotopes,
@@ -113,7 +115,7 @@ class SZDDPC(object):
         assert build_loss is not None, "Loss function callback cannot be none"
 
         self.optimization_problem = None
-        self._build_zonotopes(zonotopes)
+        self.build_zonotopes(zonotopes)
 
         Z: Zonotope = self.zonotopes.W + self.zonotopes.V + (-1 *self.zonotopes.Av)
 
