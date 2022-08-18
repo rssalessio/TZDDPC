@@ -133,104 +133,71 @@ class SZDDPC(object):
         self.build_zonotopes(zonotopes)
         self.compute_theta(tol, num_max_iterations, num_initial_points)
 
-        Z: Zonotope = self.zonotopes.W
-
         # Build variables
         e0 = cp.Parameter(shape=(self.dim_x))
         v = cp.Variable(shape=(horizon, self.dim_u))
-        xbar = cp.Variable(shape=(horizon, self.dim_x))
+        xbar = cp.Variable(shape=(horizon + 1, self.dim_x))
+        sigma = cp.Parameter(shape=(self.dim_x))
+        ubar = cp.Variable(shape=(horizon, self.dim_u))
+        xbar0 = cp.Parameter(shape=(self.dim_x))
 
         # Acl = A+BK
-        Acl = self.Msigma.center[:, self.dim_x] + self.Msigma.center[:, self.dim_x:] @ self.theta.K
+        A, B = self.Msigma.center[:, self.dim_x], self.Msigma.center[:, self.dim_x:]
+        Acl = A + B @ self.theta.K
 
         
-        beta_x = cp.Variable(shape=(horizon, self.zonotopes.U.num_generators))
-        beta_u = cp.Variable(shape=(horizon, Z.num_generators))
-        beta_y = cp.Variable(shape=(horizon, self.zonotopes.Y.num_generators))
+        beta_x = cp.Variable(shape=(horizon, self.zonotopes.X.num_generators))
+        beta_u = cp.Variable(shape=(horizon, self.zonotopes.U.num_generators))
 
         #import pdb
         #pdb.set_trace()
         constraints = [
             beta_u >= -1.,
             beta_u <= 1.,
-            u == np.array([self.zonotopes.U.center] * horizon) + (beta_u @ self.zonotopes.U.generators.T),
+            beta_x >= -1,
+            beta_x <= 1,
+            ubar == np.array([self.zonotopes.U.center] * horizon) + (beta_u @ self.zonotopes.U.generators.T),
+            xbar[1:] == np.array([self.zonotopes.X.center] * horizon) + (beta_x @ self.zonotopes.X.generators.T),
+            xbar[0] == xbar0,
+            ubar == xbar[:-1] @ self.theta.K.T + v
         ]
 
-        leftY = self.zonotopes.Y.interval.left_limit
-        rightY = self.zonotopes.Y.interval.right_limit
+        Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
 
-        R = []
+        for k in range(horizon):
+            constraints_k = [
+                xbar[k+1] == A @ xbar[k] + B @ ubar[k],
+                xbar[k] + Ze[-1].interval.right_limit <= self.zonotopes.X.interval.right_limit,
+                xbar[k] - Ze[-1].interval.left_limit >= self.zonotopes.X.interval.left_limit,
+                ubar[k] + (Ze[-1] * self.theta.K).interval.right_limit <=  self.zonotopes.U.interval.right_limit,
+                ubar[k] - (Ze[-1] * self.theta.K).interval.left_limit >= self.zonotopes.U.interval.left_limit
+            ]
+
+            constraints.extend(constraints_k)
+
+            Ze.append(
+                Ze[-1] * Acl + self.theta.deltaA @ xbar[k] + self.theta.deltaB @ ubar[k] + self.zonotopes.W + self.zonotopes.sigma
+            )
 
 
-        for k in range(num_trajectories):
-            constraints.extend([
-                #x0 <= rightY.flatten(),# * horizon),
-                #x0 >= leftY.flatten(),# * horizon),
-                znoise[k] == np.array([Z.center] * horizon) + (beta_z[k] @ Z.generators.T),
-                beta_z[k]  >= -1.,
-                beta_z[k]  <= 1.,
-                y[k][0] == y0
-            ])
 
+        _constraints = build_constraints(ubar, xbar) if build_constraints is not None else (None, None)
+ 
+        for idx, constraint in enumerate(_constraints):
+            if constraint is None or not isinstance(constraint, Constraint) or not constraint.is_dcp():
+                raise Exception(f'Constraint {idx} is not defined or is not convex.')
 
+        constraints.extend([] if _constraints is None else _constraints)
+        
+        # Build loss
+        _loss = build_loss(ubar, xbar)
+        
+        if _loss is None or not isinstance(_loss, Expression) or not _loss.is_dcp():
+            raise Exception('Loss function is not defined or is not convex!')
 
-            sys_sample: np.ndarray = self.Msigma.sample()[0]
-            sys_A = sys_sample[:, :-self.dim_u]
-            sys_B = sys_sample[:, -self.dim_u:]
-
-            #R.append([CVXZonotope(y0, np.zeros((self.dim_y, 1)))])
-
-            S = Z
-
-            Psys = solve_discrete_are(sys_A, sys_B, np.eye(sys_A.shape[0]), np.zeros(sys_B.shape[1]))
-            Ksys = -np.linalg.inv(sys_B.T @ Psys @ sys_B) @ sys_B.T @ Psys @ sys_A
-
-            Apow = np.eye(sys_A.shape[0])
-
-            for i in range(horizon):
-                print(f'{k}-{i}')
-                #R_ki = R[k][i]
-                #import pdb
-                #pdb.set_trace()
-                # Rnew: CVXZonotope = R[k][i] * sys_A + CVXZonotope(u[i], np.zeros((self.dim_u, 1))) * sys_B +  Z
-                # R[k].append(Rnew)
-                # Rinterval = Rnew.interval
-                constraints.append(y[k][i+1] == sys_A @ y[k][i] + sys_B @ u[i])# + Z.sample()[0])#  znoise[k][i])
-                # constraints.extend([
-                #     Rinterval.right_limit <= rightY,
-                #     Rinterval.left_limit >= leftY
-                # ])
-                constraints.append(y[k][i] + S.interval.right_limit <= rightY +rho[k][i])
-                constraints.append(y[k][i] - S.interval.left_limit >= leftY - rho[k][i])
-                # import pdb
-                # pdb.set_trace()
-                Apow = Apow @ sys_A #+ sys_B @ Ksys)
-                S = S + Z *Apow
-                eigs = np.abs(np.linalg.eig(Apow)[0]).max()
-                print(f'{i} - {S.interval.left_limit} - {S.interval.right_limit} - {eigs}')
-                #Si = y[k][i+1] + Z.interval.right_limit
-
-            _constraints = build_constraints(u, y[k]) if build_constraints is not None else (None, None)
-            #import pdb
-            #pdb.set_trace()
-            for idx, constraint in enumerate(_constraints):
-                if constraint is None or not isinstance(constraint, Constraint) or not constraint.is_dcp():
-                    raise Exception(f'Constraint {idx} is not defined or is not convex.')
-
-            constraints.extend([] if _constraints is None else _constraints)
-            
-            # Build loss
-            _loss = build_loss(u, y[k])
-            
-            if _loss is None or not isinstance(_loss, Expression) or not _loss.is_dcp():
-                raise Exception('Loss function is not defined or is not convex!')
-
-            constraints.append(_loss <= gamma)
         # import pdb
         # pdb.set_trace()
-        problem_loss = gamma
-        for i in range(num_trajectories):
-            problem_loss += cp.sum(cp.norm(rho[k], axis=1))
+        problem_loss =_loss
 
         # Solve problem
         objective = cp.Minimize(problem_loss)
