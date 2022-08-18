@@ -164,6 +164,15 @@ class SZDDPC(object):
 
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
 
+
+        term_1 = [self.zonotopes.W + self.zonotopes.sigma]
+        term_2 = np.zeros(xbar[0].shape)
+
+        for k in range(1,horizon):
+            term_1.append(term_1[-1] * Acl + (self.zonotopes.W + self.zonotopes.sigma))
+
+        import pdb
+        pdb.set_trace()
         for k in range(horizon):
             print(f'Step {k}')
             interval = Ze[-1].interval
@@ -178,8 +187,17 @@ class SZDDPC(object):
 
             constraints.extend(constraints_k)
 
+            ##
+            #
+            # Ze(t) = (A+BK)^t Ze(0)+ Sum_k=0^{t-1} (A+BK)^{k} (W+Sigma
+            #
+            #(Ze[-1] * Acl)# + self.zonotopes.W + self.zonotopes.sigma) + self.theta.deltaA @ xbar[k] + self.theta.deltaB @ ubar[k] 
+            term_0 = Ze[0]*np.linalg.matrix_power(Acl, k+1)
+            term_2 = term_2 @ Acl + self.theta.deltaA @ xbar[k] + self.theta.deltaB @ ubar[k] 
+
+
             Ze.append(
-                (Ze[-1] * Acl + self.zonotopes.W + self.zonotopes.sigma) + self.theta.deltaA @ xbar[k] + self.theta.deltaB @ ubar[k] 
+               term_0 + term_1[k] + term_2
             )
 
 
@@ -211,6 +229,10 @@ class SZDDPC(object):
         except cp.SolverError as e:
             raise Exception(f'Error while constructing the DeePC problem. Details: {e}')
 
+        import pdb
+        pdb.set_trace()
+        C = [x.is_dcp() for x in constraints]
+        print(f'DCP : {problem.is_dcp()}')
         # self.optimization_problem = OptimizationProblem(
         #     variables = OptimizationProblemVariables(y0=y0, u=u, y=y, s_l=beta_z, s_u=gamma, beta_u=beta_u),
         #     constraints = constraints,
