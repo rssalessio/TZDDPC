@@ -36,20 +36,20 @@ class Data(NamedTuple):
     """
     Tuple that contains input/output data
     :param u: input data
-    :param y: output data
+    :param x: state data
     """
     u: np.ndarray
-    y: np.ndarray
+    x: np.ndarray
 
 
 class DataDrivenDataset(NamedTuple):
     """
     Tuple that contains input/output data splitted
-    according to Y+, Y- and U- (resp. Yp, Ym, Um).
+    according to X+, X- and U- (resp. Yp, Ym, Um).
     See also section 2.3 in https://arxiv.org/pdf/2103.14110.pdf
     """
-    Yp: np.ndarray
-    Ym: np.ndarray
+    Xp: np.ndarray
+    Xm: np.ndarray
     Um: np.ndarray
 
 
@@ -59,17 +59,13 @@ class SystemZonotopes(NamedTuple):
 
     :param X0: initial condition zonotope
     :param U: Input zonotope
-    :param Y: Output zonotope
+    :param X: Output zonotope
     :param W: process noise zonotope
-    :param V: measurement noise zonotope
-    :param Av: Onestep propagation zonotope
     """
     X0: Zonotope
     U: Zonotope
-    Y: Zonotope
+    X: Zonotope
     W: Zonotope
-    V: Zonotope
-    Av: Zonotope
 
 class Theta(NamedTuple):
     K: np.ndarray
@@ -129,7 +125,7 @@ def compute_control_gain(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     # Return K
     return Z.value @ np.linalg.inv(X.value)
 
-def compute_theta(M: MatrixZonotope, A0: np.ndarray, B0: np.ndarray, tolerance: float = 1e-5, max_iterations: int = 20) -> Theta:
+def compute_theta(M: MatrixZonotope, A0: np.ndarray, B0: np.ndarray, tolerance: float = 1e-5, initial_points: int = 10, max_iterations: int = 20) -> Theta:
     assert M.contains(np.hstack([A0,B0])), 'M does not contain (A0,B0)'
 
     dim_x, dim_u = B0.shape
@@ -146,13 +142,13 @@ def compute_theta(M: MatrixZonotope, A0: np.ndarray, B0: np.ndarray, tolerance: 
         Kn = compute_control_gain(An, Bn)
         lambda_adv = spectral_radius(An + Bn @ Kn)
         
-        An, Bn = compute_A_B(M, Kn)
+        An, Bn = compute_A_B(M, Kn, initial_points)
         
         
         
         lambda_max = spectral_radius(An + Bn @ Kn)
         print(f'[Iteration {iteration}] Closed loop spectral radius: {lambda_init}->{lambda_max} - Adversarial spectral radius: {lambda_adv} - K {Kn.flatten()}')
-        if np.abs(lambda_max - prev_lambda_max) < tolerance or lambda_max < 1:
+        if np.abs(lambda_max - prev_lambda_max) < tolerance or lambda_max < 0.7:
             break
         
         iteration += 1

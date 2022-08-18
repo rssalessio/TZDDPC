@@ -37,5 +37,4 @@ data = generate_trajectories(sys, X0, U, W, V, num_trajectories, num_steps_per_t
 szddpc = SZDDPC(data)
 
 Msigma = szddpc.build_zonotopes(zonotopes)
-compute_theta(Msigma, Msigma.center[:, :dim_x], Msigma.center[:, dim_x:])
-compute_theta2(Msigma, Msigma.center[:, :dim_x], Msigma.center[:, dim_x:])
+szddpc.compute_theta()
