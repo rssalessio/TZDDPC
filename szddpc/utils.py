@@ -132,8 +132,8 @@ def compute_theta(M: MatrixZonotope, A0: np.ndarray, B0: np.ndarray, tolerance: 
 
     dim_x, dim_u = B0.shape
 
-    An = A0
-    Bn = B0
+    An = A0.copy()
+    Bn = B0.copy()
     Kn = np.zeros((dim_u, dim_x))
     prev_lambda_max = 0
     iteration = 0
@@ -148,14 +148,15 @@ def compute_theta(M: MatrixZonotope, A0: np.ndarray, B0: np.ndarray, tolerance: 
         
         
         
-        lambda_max = spectral_radius(An + Bn @ Kn)
+        lambda_max = max(spectral_radius(An + Bn @ Kn), spectral_radius(A0+B0@Kn))
         print(f'[Iteration {iteration}] Closed loop spectral radius: {lambda_init}->{lambda_max} - Adversarial spectral radius: {lambda_adv} - K {Kn.flatten()}')
-        if np.abs(lambda_max - prev_lambda_max) < tolerance or lambda_max < 0.7:
+        if np.abs(lambda_max - prev_lambda_max) < tolerance or lambda_max < 1:
             break
         
         iteration += 1
         prev_lambda_max = lambda_max
 
+    print(f'Radius {np.linalg.eig(A0+B0 @ Kn)[0]}')
     print(f'Optimization completed. Closed loop spectral radius: {lambda_max} - K {Kn.flatten()}')
     print('--------------------------------------------')
     return Theta(Kn, An - A0, Bn - B0)

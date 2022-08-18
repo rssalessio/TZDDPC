@@ -1,14 +1,13 @@
 import numpy as np
 from scipy.signal import StateSpace
 from pydatadrivenreachability import Zonotope
-from pyzpc import Data
+from szddpc import Data
 
 def generate_trajectories(
         sys: StateSpace,
         X0: Zonotope,
         U: Zonotope,
-        W: Zonotope,
-        V: Zonotope,        
+        W: Zonotope,     
         num_trajectories: int,
         num_steps: int) -> Data:
     """
@@ -37,7 +36,7 @@ def generate_trajectories(
             X[j, i, :] = sys.A @ X[j, i - 1, :] +  np.squeeze(sys.B * u[j, i - 1]) + W.sample()
 
             # We assume C = I
-            Y[j, i, :] = X[j, i, :] + V.sample()
+            Y[j, i, :] = X[j, i, :]
     
     y = np.reshape(Y, (num_steps * num_trajectories, dim_x))
     u = np.reshape(u, (num_steps * num_trajectories, dim_u))

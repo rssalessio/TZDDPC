@@ -99,7 +99,7 @@ class SZDDPC(object):
 
     def compute_theta(self, tol: float = 1e-5, num_max_iterations: int = 20, num_initial_points: int = 10) -> Theta:
         assert self.Msigma is not None, 'Msigma is not defined'
-        self.theta = compute_theta(self.Msigma, self.Msigma.center[:, :self.dim_y], self.Msigma.center[:, self.dim_y:],
+        self.theta = compute_theta(self.Msigma, self.Msigma.center[:, :self.dim_x], self.Msigma.center[:, self.dim_x:],
             tol, num_initial_points, num_max_iterations)
         return self.theta
 
@@ -142,7 +142,7 @@ class SZDDPC(object):
         xbar0 = cp.Parameter(shape=(self.dim_x))
 
         # Acl = A+BK
-        A, B = self.Msigma.center[:, self.dim_x], self.Msigma.center[:, self.dim_x:]
+        A, B = self.Msigma.center[:, :self.dim_x], self.Msigma.center[:, self.dim_x:]
         Acl = A + B @ self.theta.K
 
         
@@ -165,22 +165,26 @@ class SZDDPC(object):
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
 
         for k in range(horizon):
+            print(f'Step {k}')
+            interval = Ze[-1].interval
+            ZeK = (Ze[-1] * self.theta.K).interval
             constraints_k = [
                 xbar[k+1] == A @ xbar[k] + B @ ubar[k],
-                xbar[k] + Ze[-1].interval.right_limit <= self.zonotopes.X.interval.right_limit,
-                xbar[k] - Ze[-1].interval.left_limit >= self.zonotopes.X.interval.left_limit,
-                ubar[k] + (Ze[-1] * self.theta.K).interval.right_limit <=  self.zonotopes.U.interval.right_limit,
-                ubar[k] - (Ze[-1] * self.theta.K).interval.left_limit >= self.zonotopes.U.interval.left_limit
+                xbar[k] + interval.right_limit <= self.zonotopes.X.interval.right_limit,
+                xbar[k] - interval.left_limit >= self.zonotopes.X.interval.left_limit,
+                ubar[k] + ZeK.right_limit <=  self.zonotopes.U.interval.right_limit,
+                ubar[k] - ZeK.left_limit >= self.zonotopes.U.interval.left_limit
             ]
 
             constraints.extend(constraints_k)
 
             Ze.append(
-                Ze[-1] * Acl + self.theta.deltaA @ xbar[k] + self.theta.deltaB @ ubar[k] + self.zonotopes.W + self.zonotopes.sigma
+                (Ze[-1] * Acl + self.zonotopes.W + self.zonotopes.sigma) + self.theta.deltaA @ xbar[k] + self.theta.deltaB @ ubar[k] 
             )
 
 
-
+        import pdb
+        pdb.set_trace()
         _constraints = build_constraints(ubar, xbar) if build_constraints is not None else (None, None)
  
         for idx, constraint in enumerate(_constraints):
@@ -207,14 +211,14 @@ class SZDDPC(object):
         except cp.SolverError as e:
             raise Exception(f'Error while constructing the DeePC problem. Details: {e}')
 
-        self.optimization_problem = OptimizationProblem(
-            variables = OptimizationProblemVariables(y0=y0, u=u, y=y, s_l=beta_z, s_u=gamma, beta_u=beta_u),
-            constraints = constraints,
-            objective_function = problem_loss,
-            problem = problem
-        )
+        # self.optimization_problem = OptimizationProblem(
+        #     variables = OptimizationProblemVariables(y0=y0, u=u, y=y, s_l=beta_z, s_u=gamma, beta_u=beta_u),
+        #     constraints = constraints,
+        #     objective_function = problem_loss,
+        #     problem = problem
+        # )
 
-        return self.optimization_problem
+        # return self.optimization_problem
 
 
     # def build_problem2(self,
@@ -376,11 +380,11 @@ class SZDDPC(object):
                                     info['value']: value of the optimization problem
                                     info['u_optimal']: the same as the first value returned by this function
         """
-        assert len(y0) == self.dim_y, f"Invalid size"
+        assert len(e0) == self.dim_x, f"Invalid size"
         assert self.optimization_problem is not None, "Problem was not built"
 
 
-        self.optimization_problem.variables.y0.value = y0
+        #self.optimization_problem.variables.y0.value = y0
         try:
             #import pdb
             #pdb.set_trace()
