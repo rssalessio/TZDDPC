@@ -6,6 +6,7 @@ from cvxpy.expressions.expression import Expression
 from cvxpy.constraints.constraint import Constraint
 from pydatadrivenreachability import (
     concatenate_zonotope,
+    Interval,
     compute_LTI_matrix_zonotope,
     MatrixZonotope,
     Zonotope,
@@ -163,21 +164,19 @@ class SZDDPC(object):
         ]
 
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
+        Zs = CVXZonotope(np.zeros(self.dim_x), cp.diag(sigma))
 
 
-        term_1 = [self.zonotopes.W + self.zonotopes.sigma]
+        term_1 = [Zs + self.zonotopes.W]
         term_2 = np.zeros(xbar[0].shape)
 
         for k in range(1,horizon):
-            term_1.append(term_1[-1] * Acl + (self.zonotopes.W + self.zonotopes.sigma))
+            term_1.append(term_1[-1] * Acl + (Zs + self.zonotopes.W))
 
-        import pdb
-        pdb.set_trace()
         for k in range(horizon):
             print(f'Step {k}')
-            interval = Ze[-1].interval
-            Zx = (Ze[-1]+ xbar[k]).interval
-            Zu = (Ze[-1] * self.theta.K + ubar[k]).interval
+            Zx: Interval = (Ze[-1]+ xbar[k]).interval
+            Zu: Interval = (Ze[-1] * self.theta.K + ubar[k]).interval
             constraints_k = [
                 xbar[k+1] == A @ xbar[k] + B @ ubar[k],
                 Zx.right_limit <= self.zonotopes.X.interval.right_limit,
@@ -201,9 +200,6 @@ class SZDDPC(object):
                term_0 + term_1[k] + term_2
             )
 
-
-        import pdb
-        pdb.set_trace()
         _constraints = build_constraints(ubar, xbar) if build_constraints is not None else (None, None)
  
         for idx, constraint in enumerate(_constraints):
@@ -230,9 +226,6 @@ class SZDDPC(object):
         except cp.SolverError as e:
             raise Exception(f'Error while constructing the DeePC problem. Details: {e}')
 
-        import pdb
-        pdb.set_trace()
-        C = [x.is_dcp() for x in constraints]
         print(f'DCP : {problem.is_dcp()}')
         # self.optimization_problem = OptimizationProblem(
         #     variables = OptimizationProblemVariables(y0=y0, u=u, y=y, s_l=beta_z, s_u=gamma, beta_u=beta_u),

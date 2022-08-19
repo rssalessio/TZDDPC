@@ -44,7 +44,7 @@ zonotopes = SystemZonotopes(X0, U, X, W, sigma)
 
 num_trajectories = 5
 num_steps_per_trajectory = 200
-horizon =10
+horizon =100
 
 data = generate_trajectories(sys, X0, U, W, num_trajectories, num_steps_per_trajectory)
 
@@ -55,4 +55,4 @@ szddpc = SZDDPC(data)
 # szddpc.compute_theta()
 # import pdb
 # pdb.set_trace()
-szddpc.build_problem(zonotopes, 10, loss_callback, constraints_callback, tol=1e-2, num_initial_points=1)
+szddpc.build_problem(zonotopes, horizon, loss_callback, constraints_callback, tol=1e-2, num_initial_points=1)

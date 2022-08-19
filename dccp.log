@@ -1,4 +1,3 @@
-iteration=1, cost value=0.57033, tau=0.00500, solver status=optimal
-iteration=2, cost value=1.13401, tau=0.00600, solver status=optimal
-iteration=3, cost value=1.13403, tau=0.00720, solver status=optimal
-iteration=4, cost value=1.13403, tau=0.00864, solver status=optimal
+iteration=1, cost value=-0.65509, tau=0.00500, solver status=optimal
+iteration=2, cost value=1.18062, tau=0.00600, solver status=optimal
+iteration=3, cost value=1.18062, tau=0.00720, solver status=optimal
