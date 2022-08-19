@@ -110,7 +110,7 @@ class SZDDPC(object):
             tol: float = 1e-5,
             num_max_iterations: int = 20,
             num_initial_points: int = 10
-            ) -> OptimizationProblem:
+            ) -> Tuple[Theta, MatrixZonotope]:
         """
         Builds the ZPC optimization problem
         For more info check section 3.2 in https://arxiv.org/pdf/2103.14110.pdf
@@ -127,6 +127,7 @@ class SZDDPC(object):
         """
         self.build_zonotopes(zonotopes)
         self.compute_theta(tol, num_max_iterations, num_initial_points)
+        return self.theta, self.Msigma
 
 
     def solve(
@@ -163,7 +164,7 @@ class SZDDPC(object):
         A, B = self.Msigma.center[:, :self.dim_x], self.Msigma.center[:, self.dim_x:]
         Acl = A + B @ self.theta.K
 
-        print(f'Max eig {np.abs(np.linalg.eig(Acl)[0]).max()}')
+        #print(f'Max eig {np.abs(np.linalg.eig(Acl)[0]).max()}')
         
         beta_x = cp.Variable(shape=(horizon, self.zonotopes.X.num_generators))
         beta_u = cp.Variable(shape=(horizon, self.zonotopes.U.num_generators))
@@ -188,7 +189,7 @@ class SZDDPC(object):
             term_1.append(term_1[-1] * Acl + (Zsigma + self.zonotopes.W))
 
         for k in range(horizon):
-            print(f'Step {k}')
+            #print(f'Step {k}')
             Zx: Interval = (Ze[-1]+ xbar[k]).interval
             Zu: Interval = (Ze[-1] * self.theta.K + ubar[k]).interval
             constraints_k = [
@@ -251,7 +252,5 @@ class SZDDPC(object):
         if np.isinf(result):
             raise Exception('Problem is unbounded')
 
-        import pdb
-        pdb.set_trace()
-
-        return result, ubar.value, xbar.value
+ 
+        return result, v.value, xbar.value

@@ -39,7 +39,7 @@ X0 = Zonotope([0] * dim_x, 0. * np.diag([1] * dim_x))
 U = Zonotope([0] * dim_u, 2 * np.diag([1] * dim_u))
 W = Zonotope([0] * dim_x, 0.1 * np.ones((dim_x, 1)))
 X = Zonotope([1] * dim_x, 2*np.diag(np.ones(dim_x)))
-sigma = Zonotope([0] * dim_x, 1e-3*np.diag([1] * dim_x))
+sigma = Zonotope([0] * dim_x, 1e-1*np.diag([1] * dim_x))
 zonotopes = SystemZonotopes(X0, U, X, W, sigma)
 
 num_trajectories = 5
@@ -55,27 +55,25 @@ szddpc = SZDDPC(data)
 # szddpc.compute_theta()
 # import pdb
 # pdb.set_trace()
-szddpc.build_zonotopes_theta(zonotopes, tol=1e-2, num_initial_points=1)
-res, ubar, xbar = szddpc.solve(np.zeros(dim_x), np.zeros(dim_x), 20, zonotopes.sigma, loss_callback, constraints_callback, solver=cp.ECOS, verbose=True)
+theta, M = szddpc.build_zonotopes_theta(zonotopes, tol=1e-2, num_initial_points=1)
 
 
-# x0 = X0.sample().flatten()
+x = X0.sample().flatten()
+res, v, xbar = szddpc.solve(np.zeros(dim_x), np.zeros(dim_x), 20, zonotopes.sigma, loss_callback, constraints_callback, solver=cp.ECOS, verbose=False)
 
+print(xbar)
+exit(-1)
+x_traj = [x]
+xbar_traj = [x]
+e_traj = [np.zeros_like(x)]
 
-# trajectory = [x]
-# problem = szddpc.build_problem(zonotopes, horizon, loss_callback, constraints_callback)
-# for n in range(100):
-#     print(f'Step {n}')
-#     #import pdb
-#     #pdb.set_trace()
+for n in range(100):
+    print(f'Step {n} - x: {x_traj[-1]} -  e: {e_traj[-1]}')
+    res, v, xbar = szddpc.solve(xbar_traj[-1], e_traj[-1], 20, zonotopes.sigma, loss_callback, constraints_callback, solver=cp.ECOS, verbose=False)
+    u = theta.K @ (e_traj[-1] + xbar_traj[-1]) + v[0]
+
+    xbar_traj.append(xbar[1])
+    x = (sys.A @ x +  np.squeeze(sys.B @u) + W.sample()).flatten()
     
-#     result, info = szddpc.solve(x, verbose=False,warm_start=True)
-#     u = info['u_optimal']
-#     #print(u)
-#     #import pdb
-#     #pdb.set_trace()
-#     z = sys.A @ x +  np.squeeze(sys.B *u[0]) + W.sample()
-
-#     # We assume C = I
-#     x = (z + V.sample()).flatten()
-#     trajectory.append(x)
+    e_traj.append(x - xbar_traj[-1])
+    x_traj.append(x)
