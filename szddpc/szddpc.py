@@ -176,13 +176,14 @@ class SZDDPC(object):
         for k in range(horizon):
             print(f'Step {k}')
             interval = Ze[-1].interval
-            ZeK = (Ze[-1] * self.theta.K).interval
+            Zx = (Ze[-1]+ xbar).interval
+            Zu = (Ze[-1] * self.theta.K + ubar).interval
             constraints_k = [
                 xbar[k+1] == A @ xbar[k] + B @ ubar[k],
-                xbar[k] + interval.right_limit <= self.zonotopes.X.interval.right_limit,
-                xbar[k] - interval.left_limit >= self.zonotopes.X.interval.left_limit,
-                ubar[k] + ZeK.right_limit <=  self.zonotopes.U.interval.right_limit,
-                ubar[k] - ZeK.left_limit >= self.zonotopes.U.interval.left_limit
+                Zx.right_limit <= self.zonotopes.X.interval.right_limit,
+                Zx.left_limit >= self.zonotopes.X.interval.left_limit,
+                Zu.right_limit <=  self.zonotopes.U.interval.right_limit,
+                Zu.left_limit >= self.zonotopes.U.interval.left_limit
             ]
 
             constraints.extend(constraints_k)
