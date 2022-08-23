@@ -75,7 +75,8 @@ class SZDDPC(object):
         Xm = data.x[:-1]
         Xp = data.x[1:]
         Um = data.u[:-1]
-        self.dataset = DataDrivenDataset(Xp, Xm, Um)
+
+        self.dataset = DataDrivenDataset(Xp, Xm, Um, data)
         self.optimization_problem = None
 
     def build_zonotopes(self, zonotopes: SystemZonotopes):
@@ -100,10 +101,11 @@ class SZDDPC(object):
 
     def compute_theta(self, tol: float = 1e-5, num_max_iterations: int = 20, num_initial_points: int = 10) -> Theta:
         assert self.Msigma is not None, 'Msigma is not defined'
+        # Simulate closed loop systems and gather trajectories        
         self.theta = compute_theta(self.Msigma, self.Msigma.center[:, :self.dim_x], self.Msigma.center[:, self.dim_x:],
             tol, num_initial_points, num_max_iterations)
-        return self.theta
 
+        return self.theta
 
     def build_zonotopes_theta(self,
             zonotopes: SystemZonotopes,
@@ -127,6 +129,7 @@ class SZDDPC(object):
         """
         self.build_zonotopes(zonotopes)
         self.compute_theta(tol, num_max_iterations, num_initial_points)
+
         return self.theta, self.Msigma
 
 
@@ -139,7 +142,7 @@ class SZDDPC(object):
             build_loss: Callable[[cp.Variable, cp.Variable], Expression],
             build_constraints: Optional[Callable[[cp.Variable, cp.Variable], Optional[List[Constraint]]]] = None,
             **cvxpy_kwargs
-        ) -> Tuple[np.ndarray, Dict[str, Union[float, np.ndarray, OptimizationProblemVariables]]]:
+        ) -> Tuple[float, np.ndarray, np.ndarray, CVXZonotope]:
         """
         Solves the DeePC optimization problem
         For more info check alg. 2 in https://arxiv.org/pdf/1811.05890.pdf
@@ -182,11 +185,11 @@ class SZDDPC(object):
 
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
 
-        term_1 = [Zsigma + self.zonotopes.W]
+        term_1 = [self.zonotopes.W + self.zonotopes.sigma]
         term_2 = np.zeros(xbar[0].shape)
 
         for k in range(1,horizon):
-            term_1.append(term_1[-1] * Acl + (Zsigma + self.zonotopes.W))
+            term_1.append(term_1[-1] * Acl + (self.zonotopes.W + self.zonotopes.sigma))
 
         for k in range(horizon):
             #print(f'Step {k}')
@@ -210,10 +213,12 @@ class SZDDPC(object):
             term_0 = Ze[0]*np.linalg.matrix_power(Acl, k+1)
             term_2 = term_2 @ Acl + self.theta.deltaA @ xbar[k] + self.theta.deltaB @ ubar[k] 
 
-
             Ze.append(
                term_0 + term_1[k] + term_2
             )
+
+            #term_2 = term_2 * Acl
+            
 
         _constraints = build_constraints(ubar, xbar[1:]) if build_constraints is not None else (None, None)
  
@@ -252,5 +257,7 @@ class SZDDPC(object):
         if np.isinf(result):
             raise Exception('Problem is unbounded')
 
- 
-        return result, v.value, xbar.value
+        # print(f'Left: {Ze[1].interval.left_limit.value} - Right: {Ze[1].interval.right_limit.value} ')
+        # print(term_1[-1].interval.right_limit)
+        # print(term_2.value)
+        return result, v.value, xbar.value, Ze[1]

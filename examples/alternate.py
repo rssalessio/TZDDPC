@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from typing import List
 from cvxpy.expressions.expression import Expression
 from cvxpy.constraints.constraint import Constraint
-from szddpc import SZDDPC, Data, SystemZonotopes, compute_theta,compute_theta2
+from szddpc import SZDDPC, Data, SystemZonotopes, compute_theta,compute_theta2, compute_maximization
 from utils import generate_trajectories
 from pydatadrivenreachability import Zonotope
 
@@ -48,7 +48,7 @@ A,B,C,D,_ = scipysig.cont2discrete(system=(A,B,C,D), dt = dt)
 # Define zonotopes and generate data
 X0 = Zonotope([0] * dim_x, 1 * np.diag([1] * dim_x))
 U = Zonotope([1] * dim_u,  5 * np.diag([1] * dim_u))
-W = Zonotope([0] * dim_x, 1* np.ones((dim_x, 1)))
+W = Zonotope([0] * dim_x, 0.1* np.ones((dim_x, 1)))
 X = Zonotope([1] * dim_x, 2*np.diag(np.ones(dim_x)))
 
 dt = 0.05
@@ -80,6 +80,7 @@ szddpc = SZDDPC(data)
 theta, M = szddpc.build_zonotopes_theta(zonotopes, tol=1e-2, num_initial_points=1)
 import pdb
 pdb.set_trace()
+compute_maximization(M, theta.K)
 A0,B0 = A,B
 A,B = M.center[:, :dim_x], M.center[:, dim_x:]
 Acl = A + B @ theta.K
