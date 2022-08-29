@@ -1,29 +1,12 @@
-from cmath import isinf
 import numpy as np
 import cvxpy as cp
 from typing import Tuple, Callable, List, Optional, Union, Dict
 from cvxpy.expressions.expression import Expression
 from cvxpy.constraints.constraint import Constraint
-from pydatadrivenreachability import (
-    concatenate_zonotope,
-    Interval,
-    compute_LTI_matrix_zonotope,
-    MatrixZonotope,
-    Zonotope,
-    CVXZonotope)
-
-from szddpc.utils import (
-    Data,
-    Theta,
-    compute_theta,
-    DataDrivenDataset,
-    SystemZonotopes,
-    OptimizationProblem,
-    OptimizationProblemVariables)
-import sys
-from scipy.linalg import solve_discrete_are
-#sys.setrecursionlimit(10000)
-
+from pyzonotope import MatrixZonotope, concatenate_zonotope, Zonotope, CVXZonotope, Interval
+from pydatadrivenreachability import compute_LTI_matrix_zonotope
+from szddpc.objects import OptimizationProblem, DataDrivenDataset, SystemZonotopes, Theta, Data
+from szddpc.utils import compute_theta
 
 class SZDDPC(object):
     optimization_problem: Union[OptimizationProblem,None] = None

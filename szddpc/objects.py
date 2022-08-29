@@ -4,7 +4,6 @@ from cvxpy import Expression, Variable, Problem, Parameter
 from cvxpy.constraints.constraint import Constraint
 from pyzonotope import Zonotope
 
-
 class OptimizationProblemVariables(NamedTuple):
     """
     Class used to store all the variables used in the optimization
