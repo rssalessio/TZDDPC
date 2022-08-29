@@ -12,7 +12,9 @@ class SZDDPC(object):
     optimization_problem: Union[OptimizationProblem,None] = None
     dataset: DataDrivenDataset
     zonotopes: SystemZonotopes
-    Msigma: MatrixZonotope
+    Mdata: MatrixZonotope
+    Mdelta: MatrixZonotope
+    MdataK: MatrixZonotope
     theta: Theta
 
     def __init__(self, data: Data):
@@ -27,7 +29,7 @@ class SZDDPC(object):
     
     @property
     def num_samples(self) -> int:
-        """ Return the number of samples used to estimate the Matrix Zonotope Msigma """
+        """ Return the number of samples used to estimate the Matrix Zonotope Mdata """
         return self.dataset.Um.shape[0] + 1
 
     @property
@@ -78,14 +80,14 @@ class SZDDPC(object):
         self.zonotopes = zonotopes
         Mw = concatenate_zonotope(W, self.num_samples - 1)
 
-        self.Msigma = compute_LTI_matrix_zonotope(self.dataset.Xm, self.dataset.Xp, self.dataset.Um, Mw)
+        self.Mdata = compute_LTI_matrix_zonotope(self.dataset.Xm, self.dataset.Xp, self.dataset.Um, Mw)
         print('--------------------------------------------')
-        return self.Msigma
+        return self.Mdata
 
     def compute_theta(self, tol: float = 1e-5, num_max_iterations: int = 20, num_initial_points: int = 10) -> Theta:
-        assert self.Msigma is not None, 'Msigma is not defined'
+        assert self.Mdata is not None, 'Mdata is not defined'
         # Simulate closed loop systems and gather trajectories        
-        self.theta = compute_theta(self.Msigma, self.Msigma.center[:, :self.dim_x], self.Msigma.center[:, self.dim_x:],
+        self.theta = compute_theta(self.Mdata, self.Mdata.center[:, :self.dim_x], self.Mdata.center[:, self.dim_x:],
             tol, num_initial_points, num_max_iterations)
 
         return self.theta
@@ -113,14 +115,24 @@ class SZDDPC(object):
         self.build_zonotopes(zonotopes)
         self.compute_theta(tol, num_max_iterations, num_initial_points)
 
-        return self.theta, self.Msigma
+        # Create Mdelta,K
+        self.MdataK = self.Mdata * np.vstack([np.eye(self.dim_x), self.theta.K])
+
+        # Create MDelta
+        self.Mdelta: MatrixZonotope = self.Mdata - np.hstack([self.Mdata.center[:, self.dim_x], self.Mdata.center[:, self.dim_x:]])
+
+        # Reduce order
+        self.Mdata = self.Mdata.reduce(max(1, int(0.1 * self.Mdata.order)))
+        self.MdataK = self.MdataK.reduce(max(1, int(0.1 * self.MdataK.order)))
+        self.Mdelta = self.Mdelta.reduce(max(1, int(0.1 * self.Mdelta.order)))
+
+        return self.theta, self.Mdata
 
     def solve(
             self,
             xbar0: np.ndarray,
             e0: np.ndarray,
             horizon: int,
-            Zsigma: Zonotope,
             build_loss: Callable[[cp.Variable, cp.Variable], Expression],
             build_constraints: Optional[Callable[[cp.Variable, cp.Variable], Optional[List[Constraint]]]] = None,
             **cvxpy_kwargs
@@ -146,11 +158,9 @@ class SZDDPC(object):
         ubar = cp.Variable(shape=(horizon, self.dim_u))
 
         # Acl = A+BK
-        A, B = self.Msigma.center[:, :self.dim_x], self.Msigma.center[:, self.dim_x:]
+        A, B = self.Mdata.center[:, :self.dim_x], self.Mdata.center[:, self.dim_x:]
         Acl = A + B @ self.theta.K
 
-        #print(f'Max eig {np.abs(np.linalg.eig(Acl)[0]).max()}')
-        
         beta_x = cp.Variable(shape=(horizon, self.zonotopes.X.num_generators))
         beta_u = cp.Variable(shape=(horizon, self.zonotopes.U.num_generators))
 
@@ -167,14 +177,9 @@ class SZDDPC(object):
 
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
 
-        term_1 = [self.zonotopes.W + self.zonotopes.sigma]
-        term_2 = np.zeros(xbar[0].shape)
-
-        for k in range(1,horizon):
-            term_1.append(term_1[-1] * Acl + (self.zonotopes.W + self.zonotopes.sigma))
 
         for k in range(horizon):
-            #print(f'Step {k}')
+            print(f'Step {k}')
             Zx: Interval = (Ze[-1]+ xbar[k]).interval
             Zu: Interval = (Ze[-1] * self.theta.K + ubar[k]).interval
             constraints_k = [
@@ -184,24 +189,14 @@ class SZDDPC(object):
                 Zu.right_limit <=  self.zonotopes.U.interval.right_limit,
                 Zu.left_limit >= self.zonotopes.U.interval.left_limit
             ]
+            Ze_new_term1 = self.MdataK * Ze[-1] 
+            Ze_new_term2 = self.Mdelta * np.vstack((xbar[k], ubar[k]))
+            Ze_new = Ze_new_term1 + Ze_new_term2 + self.zonotopes.W
+            Ze.append(Ze_new)
 
             constraints.extend(constraints_k)
 
-            ##
-            #
-            # Ze(t) = (A+BK)^t Ze(0)+ Sum_k=0^{t-1} (A+BK)^{k} (W+Sigma
-            #
-            #(Ze[-1] * Acl)# + self.zonotopes.W + self.zonotopes.sigma) + self.theta.deltaA @ xbar[k] + self.theta.deltaB @ ubar[k] 
-            term_0 = Ze[0]*np.linalg.matrix_power(Acl, k+1)
-            term_2 = term_2 @ Acl + self.theta.deltaA @ xbar[k] + self.theta.deltaB @ ubar[k] 
-
-            Ze.append(
-               term_0 + term_1[k] + term_2
-            )
-
-            #term_2 = term_2 * Acl
             
-
         _constraints = build_constraints(ubar, xbar[1:]) if build_constraints is not None else (None, None)
  
         for idx, constraint in enumerate(_constraints):
@@ -224,7 +219,7 @@ class SZDDPC(object):
         try:
             problem = cp.Problem(objective, constraints)
         except cp.SolverError as e:
-            raise Exception(f'Error while constructing the DeePC problem. Details: {e}')
+            raise Exception(f'Error while constructing the TZDDPC problem. Details: {e}')
 
         assert problem.is_dcp(), 'Problem does not satisfy the DCP rules'
  
@@ -233,15 +228,13 @@ class SZDDPC(object):
             result = problem.solve(**cvxpy_kwargs)
         except cp.SolverError as e:
             with open('zpc_logs.txt', 'w') as f:
-                print(f'Error while solving the DeePC problem. Details: {e}', file=f)
-            raise Exception(f'Error while solving the DeePC problem. Details: {e}')
+                print(f'Error while solving the TZDDPC problem. Details: {e}', file=f)
+            raise Exception(f'Error while solving the TZDDPC problem. Details: {e}')
 
         if np.isinf(result):
             raise Exception('Problem is unbounded')
 
-        # print(f'Left: {Ze[1].interval.left_limit.value} - Right: {Ze[1].interval.right_limit.value} ')
-        # print(term_1[-1].interval.right_limit)
-        # print(term_2.value)
+
         return result, v.value, xbar.value, Ze[1]
 
     def solve_simplified(
@@ -276,7 +269,7 @@ class SZDDPC(object):
         ubar = cp.Variable(shape=(horizon, self.dim_u))
 
         # Acl = A+BK
-        A, B = self.Msigma.center[:, :self.dim_x], self.Msigma.center[:, self.dim_x:]
+        A, B = self.Mdata.center[:, :self.dim_x], self.Mdata.center[:, self.dim_x:]
         Acl = A + B @ self.theta.K
         
         beta_x = cp.Variable(shape=(horizon, self.zonotopes.X.num_generators))
