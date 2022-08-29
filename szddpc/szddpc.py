@@ -209,7 +209,7 @@ class SZDDPC(object):
             # for i in range(k):
             #     Ze_new_term1 = self.MdataK * Ze_new_term1
             # Ze_new_term2 = self.Mdelta * CVXZonotope(cp.hstack((xbar[k], ubar[k])), np.zeros((self.dim_x + self.dim_u, 1)))
-            Ze_new =Ze_new_term1[k] + Ze_new_term2[k]# Ze_new_term1 + Ze_new_term2 + self.zonotopes.W
+            Ze_new: CVXZonotope =Ze_new_term1[k] + Ze_new_term2[k]# Ze_new_term1 + Ze_new_term2 + self.zonotopes.W
             print(Ze_new.num_generators)
             Ze.append(Ze_new)
 
