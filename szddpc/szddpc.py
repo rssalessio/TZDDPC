@@ -115,7 +115,6 @@ class SZDDPC(object):
 
         return self.theta, self.Msigma
 
-
     def solve(
             self,
             xbar0: np.ndarray,
@@ -243,4 +242,121 @@ class SZDDPC(object):
         # print(f'Left: {Ze[1].interval.left_limit.value} - Right: {Ze[1].interval.right_limit.value} ')
         # print(term_1[-1].interval.right_limit)
         # print(term_2.value)
+        return result, v.value, xbar.value, Ze[1]
+
+    def solve_simplified(
+            self,
+            xbar0: np.ndarray,
+            e0: np.ndarray,
+            horizon: int,
+            Zsigma: List[Zonotope],
+            build_loss: Callable[[cp.Variable, cp.Variable], Expression],
+            build_constraints: Optional[Callable[[cp.Variable, cp.Variable], Optional[List[Constraint]]]] = None,
+            **cvxpy_kwargs
+        ) -> Tuple[float, np.ndarray, np.ndarray, CVXZonotope]:
+        """
+        Solves the DeePC optimization problem
+        For more info check alg. 2 in https://arxiv.org/pdf/1811.05890.pdf
+
+        :param y0:                  The initial output
+        :param cvxpy_kwargs:        All arguments that need to be passed to the cvxpy solve method.
+        :return u_optimal:          Optimal input signal to be applied to the system, of length `horizon`
+        :return info:               A dictionary with 5 keys:
+                                    info['variables']: variables of the optimization problem
+                                    info['value']: value of the optimization problem
+                                    info['u_optimal']: the same as the first value returned by this function
+        """
+        assert build_loss is not None, "Loss function callback cannot be none"
+        assert len(e0) == self.dim_x, f"Invalid size"
+        assert len(Zsigma) == horizon, "Zsigma needs to be a list of zonotopes of length == N, the horizon"
+
+        # Build variables
+        v = cp.Variable(shape=(horizon, self.dim_u))
+        xbar = cp.Variable(shape=(horizon + 1, self.dim_x))
+        ubar = cp.Variable(shape=(horizon, self.dim_u))
+
+        # Acl = A+BK
+        A, B = self.Msigma.center[:, :self.dim_x], self.Msigma.center[:, self.dim_x:]
+        Acl = A + B @ self.theta.K
+        
+        beta_x = cp.Variable(shape=(horizon, self.zonotopes.X.num_generators))
+        beta_u = cp.Variable(shape=(horizon, self.zonotopes.U.num_generators))
+
+        constraints = [
+            beta_u >= -1.,
+            beta_u <= 1.,
+            beta_x >= -1,
+            beta_x <= 1,
+            ubar == np.array([self.zonotopes.U.center] * horizon) + (beta_u @ self.zonotopes.U.generators.T),
+            xbar[1:] == np.array([self.zonotopes.X.center] * horizon) + (beta_x @ self.zonotopes.X.generators.T),
+            xbar[0] == xbar0,
+            ubar == xbar[:-1] @ self.theta.K.T + v
+        ]
+
+        Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
+
+        term_1 = [self.zonotopes.W + self.zonotopes.sigma[0]]
+        term_2 = np.zeros(self.dim_x)
+
+        for k in range(1,horizon):
+            term_1.append(term_1[-1] * Acl + (self.zonotopes.W + self.zonotopes.sigma[k]))
+
+        for k in range(horizon):
+            Zx: Interval = (Ze[-1]+ xbar[k]).interval
+            Zu: Interval = (Ze[-1] * self.theta.K + ubar[k]).interval
+            constraints_k = [
+                xbar[k+1] == Acl @ xbar[k] + B @ v[k],
+                Zx.right_limit <= self.zonotopes.X.interval.right_limit,
+                Zx.left_limit >= self.zonotopes.X.interval.left_limit,
+                Zu.right_limit <=  self.zonotopes.U.interval.right_limit,
+                Zu.left_limit >= self.zonotopes.U.interval.left_limit
+            ]
+
+            constraints.extend(constraints_k)
+
+            # Ze(t) = (A+BK)^t Ze(0)+ Sum_k=0^{t-1} (A+BK)^{k} (W+Sigma
+            term_0 = Ze[0]*np.linalg.matrix_power(Acl, k+1)
+            term_2 = term_2 @ Acl + self.theta.deltaA @ xbar[k] + self.theta.deltaB @ ubar[k] 
+
+            Ze.append(
+               term_0 + term_1[k] + term_2
+            )
+
+        _constraints = build_constraints(ubar, xbar[1:]) if build_constraints is not None else (None, None)
+ 
+        for idx, constraint in enumerate(_constraints):
+            if constraint is None or not isinstance(constraint, Constraint) or not constraint.is_dcp():
+                raise Exception(f'Constraint {idx} is not defined or is not convex.')
+
+        constraints.extend([] if _constraints is None else _constraints)
+        
+        # Build loss
+        _loss = build_loss(ubar, xbar[1:])
+        
+        if _loss is None or not isinstance(_loss, Expression) or not _loss.is_dcp():
+            raise Exception('Loss function is not defined or is not convex!')
+
+        problem_loss =_loss
+
+        # Solve problem
+        objective = cp.Minimize(problem_loss)
+
+        try:
+            problem = cp.Problem(objective, constraints)
+        except cp.SolverError as e:
+            raise Exception(f'Error while constructing the DeePC problem. Details: {e}')
+
+        assert problem.is_dcp(), 'Problem does not satisfy the DCP rules'
+ 
+
+        try:
+            result = problem.solve(**cvxpy_kwargs)
+        except cp.SolverError as e:
+            with open('tzddpc.txt', 'w') as f:
+                print(f'Error while solving the simplified TZDDPC problem. Details: {e}', file=f)
+            raise Exception(f'Error while solving the simplified TZDDPC problem. Details: {e}')
+
+        if np.isinf(result):
+            raise Exception('Problem is unbounded')
+
         return result, v.value, xbar.value, Ze[1]
