@@ -119,19 +119,18 @@ class SZDDPC(object):
         self.MdataK = self.Mdata * np.vstack([np.eye(self.dim_x), self.theta.K])
 
         # Create MDelta
-        self.Mdelta: MatrixZonotope = self.Mdata - np.hstack([self.Mdata.center[:, self.dim_x], self.Mdata.center[:, self.dim_x:]])
+        delta = np.hstack([self.Mdata.center[:, :self.dim_x], self.Mdata.center[:, self.dim_x:]])
+        self.Mdelta: MatrixZonotope = self.Mdata + (-1 * delta)
 
         # Reduce order
-        self.Mdata = self.Mdata.reduce(max(1, int(0.1 * self.Mdata.order)))
-        self.MdataK = self.MdataK.reduce(max(1, int(0.1 * self.MdataK.order)))
-        self.Mdelta = self.Mdelta.reduce(max(1, int(0.1 * self.Mdelta.order)))
+        self.Mdata = self.Mdata.reduce(1)#max(1, int(.1 * self.Mdata.order)))
+        self.MdataK = self.MdataK.reduce(1)#max(1, int(.1 * self.MdataK.order)))
+        self.Mdelta = self.Mdelta.reduce(1)#max(1, int(.1 * self.Mdelta.order)))
 
         return self.theta, self.Mdata
 
-    def solve(
+    def build_problem(
             self,
-            xbar0: np.ndarray,
-            e0: np.ndarray,
             horizon: int,
             build_loss: Callable[[cp.Variable, cp.Variable], Expression],
             build_constraints: Optional[Callable[[cp.Variable, cp.Variable], Optional[List[Constraint]]]] = None,
@@ -150,10 +149,12 @@ class SZDDPC(object):
                                     info['u_optimal']: the same as the first value returned by this function
         """
         assert build_loss is not None, "Loss function callback cannot be none"
-        assert len(e0) == self.dim_x, f"Invalid size"
+        #assert len(e0) == self.dim_x, f"Invalid size"
 
         # Build variables
+        e0 = cp.Parameter(shape=(self.dim_x))
         v = cp.Variable(shape=(horizon, self.dim_u))
+        xbar0 = cp.Parameter(shape=(self.dim_x))
         xbar = cp.Variable(shape=(horizon + 1, self.dim_x))
         ubar = cp.Variable(shape=(horizon, self.dim_u))
 
@@ -177,6 +178,20 @@ class SZDDPC(object):
 
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
 
+        XU = [CVXZonotope(cp.hstack((xbar[k], ubar[k])), np.zeros((self.dim_x + self.dim_u, 1))) for k in range(horizon)]
+        Ze_new_term1 = [self.MdataK * Ze[0] ]
+        Z_noise = [self.Mdelta * XU[k] + self.zonotopes.W for k in range(horizon)]
+        Ze_new_term2 = []
+
+    
+        for k in range(horizon):
+            Ze_new_term1.append(self.MdataK * Ze_new_term1[-1])
+
+            noise_term =  Z_noise[0]
+            for j in range(k):
+                noise_term = self.MdataK * Z_noise[j] + Z_noise[j+1]
+            Ze_new_term2.append(noise_term)
+
 
         for k in range(horizon):
             print(f'Step {k}')
@@ -189,9 +204,13 @@ class SZDDPC(object):
                 Zu.right_limit <=  self.zonotopes.U.interval.right_limit,
                 Zu.left_limit >= self.zonotopes.U.interval.left_limit
             ]
-            Ze_new_term1 = self.MdataK * Ze[-1] 
-            Ze_new_term2 = self.Mdelta * np.vstack((xbar[k], ubar[k]))
-            Ze_new = Ze_new_term1 + Ze_new_term2 + self.zonotopes.W
+
+            # Ze_new_term1 = self.MdataK * Ze[0] 
+            # for i in range(k):
+            #     Ze_new_term1 = self.MdataK * Ze_new_term1
+            # Ze_new_term2 = self.Mdelta * CVXZonotope(cp.hstack((xbar[k], ubar[k])), np.zeros((self.dim_x + self.dim_u, 1)))
+            Ze_new =Ze_new_term1[k] + Ze_new_term2[k]# Ze_new_term1 + Ze_new_term2 + self.zonotopes.W
+            print(Ze_new.num_generators)
             Ze.append(Ze_new)
 
             constraints.extend(constraints_k)
@@ -217,25 +236,37 @@ class SZDDPC(object):
         objective = cp.Minimize(problem_loss)
 
         try:
-            problem = cp.Problem(objective, constraints)
+            self.problem_full = cp.Problem(objective, constraints)
         except cp.SolverError as e:
             raise Exception(f'Error while constructing the TZDDPC problem. Details: {e}')
+        assert self.problem_full.is_dcp(), 'Problem does not satisfy the DCP rules'
 
-        assert problem.is_dcp(), 'Problem does not satisfy the DCP rules'
+
+        self.parameters = (e0, xbar0)
+        self.variables = (v, xbar, Ze)
+        return self.problem_full
+
+    def solve(
+            self,
+            xbar0: np.ndarray,
+            e0: np.ndarray,
+            **cvxpy_kwargs
+        ) -> Tuple[float, np.ndarray, np.ndarray, CVXZonotope]:
  
-
+        self.parameters[0].value = e0
+        self.parameters[1].value = xbar0
         try:
-            result = problem.solve(**cvxpy_kwargs)
+            result = self.problem_full.solve(**cvxpy_kwargs)
         except cp.SolverError as e:
             with open('zpc_logs.txt', 'w') as f:
                 print(f'Error while solving the TZDDPC problem. Details: {e}', file=f)
             raise Exception(f'Error while solving the TZDDPC problem. Details: {e}')
 
+
         if np.isinf(result):
             raise Exception('Problem is unbounded')
 
-
-        return result, v.value, xbar.value, Ze[1]
+        return result, self.variables[0].value, self.variables[1].value, self.variables[2][1]
 
     def solve_simplified(
             self,
@@ -288,13 +319,14 @@ class SZDDPC(object):
 
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
 
-        term_1 = [self.zonotopes.W + self.zonotopes.sigma[0]]
+        term_1 = [self.zonotopes.W + Zsigma[0]]
         term_2 = np.zeros(self.dim_x)
 
         for k in range(1,horizon):
-            term_1.append(term_1[-1] * Acl + (self.zonotopes.W + self.zonotopes.sigma[k]))
+            term_1.append(term_1[-1] * Acl + (self.zonotopes.W + Zsigma[k]))
 
         for k in range(horizon):
+            # print(f'[Simplified] Step {k}')
             Zx: Interval = (Ze[-1]+ xbar[k]).interval
             Zu: Interval = (Ze[-1] * self.theta.K + ubar[k]).interval
             constraints_k = [

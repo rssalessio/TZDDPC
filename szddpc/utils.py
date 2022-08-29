@@ -3,6 +3,7 @@ from typing import Tuple
 from pyzonotope import MatrixZonotope
 from szddpc.objects import Theta
 import cvxpy as cp
+import dccp
 
 def spectral_radius(X: np.ndarray) -> float:
     """ Returns the spectral radius of a matrix """
@@ -97,6 +98,7 @@ def compute_theta(
     assert Mdata.contains(np.hstack([An,Bn])), 'M does not contain (An,Bn)'
     assert is_gain_robust(Mdata, Kn, accuracy, confidence), f'K is not robust with accuracy-confidence of {accuracy,1-confidence}'
 
+
     return Theta(Kn, An - A0, Bn - B0)
 
 def is_gain_robust(Mdata: MatrixZonotope, K: np.ndarray, accuracy: float, confidence: float) -> bool:
@@ -112,13 +114,15 @@ def is_gain_robust(Mdata: MatrixZonotope, K: np.ndarray, accuracy: float, confid
 
     dim_n = K.shape[1]
 
-    N = np.log(1/confidence) / np.log(1 / (1 - accuracy))
+    # Compute sample size
+    N = int(np.ceil(np.log(1/confidence) / np.log(1 / (1 - accuracy))))
 
     for n in range(N):
-        X = Mdata.sample()
+        X = Mdata.sample()[0]
         A, B = X[:, :dim_n], X[:, dim_n:]
 
         if spectral_radius(A + B @K ) >= 1.:
             return False
     
+    print(f'Matrix {K} is robust with accuracy-confidence ({accuracy},{1-confidence}) (tested with {N} samples)')
     return True

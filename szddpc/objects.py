@@ -60,13 +60,11 @@ class SystemZonotopes(NamedTuple):
     :param U: Input zonotope
     :param X: Output zonotope
     :param W: process noise zonotope
-    :param sigma: Disturbance zonotope
     """
     X0: Zonotope
     U: Zonotope
     X: Zonotope
     W: Zonotope
-    sigma: Zonotope
 
 class Theta(NamedTuple):
     K: np.ndarray
