@@ -78,8 +78,37 @@ data = generate_trajectories(sys, X0, U, W, num_trajectories, num_steps_per_traj
 # Build DPC
 szddpc = SZDDPC(data)
 theta, M = szddpc.build_zonotopes_theta(zonotopes, tol=1e-2, num_initial_points=1)
+
+Ma = M.choose_columns([idx for idx in range(dim_x)])
+Mb = M.choose_columns([dim_x+idx for idx in range(dim_u)]).reduce(1)
+
 import pdb
 pdb.set_trace()
+eigenvalues = []
+eigenvalues1 = []
+for i in range(100000):
+    Msample = M.sample()[0]
+    A, B = Msample[:, :dim_x], Msample[:, dim_x:]
+
+    MABK =A + B @ theta.K
+    eigenvalues.append(np.abs(np.linalg.eig(MABK)[0]).max())
+
+    A = Ma.sample()[0]
+    B = Mb.sample()[0]
+    MABK =A + B @ theta.K
+    eigenvalues1.append(np.abs(np.linalg.eig(MABK)[0]).max())
+
+
+plt.plot(eigenvalues)
+plt.plot(eigenvalues1, label='double sample')
+plt.legend()
+plt.grid()
+plt.show()
+
+Mnew = MABK *np.ones((5,1))
+Mnew = MABK*Mnew
+Mnew = MABK *Mnew
+print(Mnew.interval.right_limit)
 compute_maximization(M, theta.K)
 A0,B0 = A,B
 A,B = M.center[:, :dim_x], M.center[:, dim_x:]

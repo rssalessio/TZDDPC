@@ -173,7 +173,7 @@ def compute_A_B(Msigma: MatrixZonotope, K: np.ndarray, num_init: int = 10) -> Tu
 
     constraints.append(A == Agen)
     constraints.append(B == Bgen)
-    problem = cp.Problem(cp.Maximize(cp.norm(A + B @ K)), constraints)
+    problem = cp.Problem(cp.Maximize(cp.norm(A + B @ K, p='fro')), constraints)
 
     res = problem.solve(method='dccp', solver=cp.MOSEK, verbose=False, ccp_times=num_init)
 
@@ -212,6 +212,7 @@ def compute_theta(Msigma: MatrixZonotope, A0: np.ndarray, B0: np.ndarray, tolera
     while iteration < max_iterations:
         lambda_init = spectral_radius(An + Bn @ Kn)
         Kn = compute_control_gain(An, Bn)
+ 
         lambda_adv = spectral_radius(An + Bn @ Kn)
         
         An, Bn = compute_A_B(Msigma, Kn, initial_points)
