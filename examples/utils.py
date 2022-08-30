@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.signal import StateSpace
-from pydatadrivenreachability import Zonotope
+from pyzonotope import Zonotope
 from szddpc import Data
 
 def generate_trajectories(
@@ -14,11 +14,10 @@ def generate_trajectories(
     Generates trajectories from the system. We assume full state
     measurement (i.e., C=i)
 
-    X0,U,W,V are respectively the zonotopes of the: 
+    X0,U,W are respectively the zonotopes of the: 
         - initial condition
         - control signal
         - Process noise
-        - Measurement noise
     
     Returns a data object
     """

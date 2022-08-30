@@ -1,1 +1,0 @@
-Error while solving the DeePC problem. Details: Solver 'ECOS' failed. Try another solver, or solve with verbose=True for more information.
