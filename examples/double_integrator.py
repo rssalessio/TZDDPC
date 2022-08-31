@@ -12,7 +12,7 @@ from utils import generate_trajectories
 from pyzonotope import Zonotope
 from matplotlib.collections import PatchCollection
 import matplotlib.cm as cm
-np.random.seed(12)
+np.random.seed(25)
 
 
 # Define the loss function
@@ -67,65 +67,65 @@ szddpc = SZDDPC(data)
 szddpc.build_zonotopes_theta(zonotopes)
 
 
-x_full = [x0]
-xbar_full = [x_full[-1].copy()]
-e_full = [np.zeros_like(x_full[-1])]
-Ze_full = [Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))) + x_full[-1]]
+# x_full = [x0]
+# xbar_full = [x_full[-1].copy()]
+# e_full = [np.zeros_like(x_full[-1])]
+# Ze_full = [Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))) + x_full[-1]]
 
-szddpc.build_problem(3, loss_callback, constraints_callback)
+# szddpc.build_problem(3, loss_callback, constraints_callback)
 
-for t in range(total_steps):
-    result, v, xbark, Zek = szddpc.solve(
-        xbar_full[-1],
-        e_full[-1],
-        verbose=True
-    )
-    print(f'[{t}] x: {x_full[-1]} - xbar: {xbar_full[-1]} - v: {v[0]}')
+# for t in range(total_steps):
+#     result, v, xbark, Zek = szddpc.solve(
+#         xbar_full[-1],
+#         e_full[-1],
+#         verbose=True
+#     )
+#     print(f'[{t}] x: {x_full[-1]} - xbar: {xbar_full[-1]} - v: {v[0]}')
 
-    xbar_full.append(xbark[1])
-    u = szddpc.theta.K @ x_full[-1] + v[0]
-    x_next = sys.A @ x_full[-1] +  np.squeeze(sys.B @ u) + W.sample()
-    x_full.append(x_next.flatten())
-    e_full.append(x_full[-1] - xbar_full[-1])
+#     xbar_full.append(xbark[1])
+#     u = szddpc.theta.K @ x_full[-1] + v[0]
+#     x_next = sys.A @ x_full[-1] +  np.squeeze(sys.B @ u) + W.sample()
+#     x_full.append(x_next.flatten())
+#     e_full.append(x_full[-1] - xbar_full[-1])
     
-    Zek = Zek.Z.value
-    Ze_full.append(Zonotope(Zek[:, 0], Zek[:, 1:]) + xbar_full[-1])
+#     Zek = Zek.Z.value
+#     Ze_full.append(Zonotope(Zek[:, 0], Zek[:, 1:]) + xbar_full[-1])
 
-x_full = np.array(x_full)
-xbar_full = np.array(xbar_full)
-e_full = np.array(e_full)
-
-
-fig, ax = plt.subplots()
-colors = cm.gray(np.linspace(0, 1, len(Ze_full)))
-
-centers = []
-for idx, Z in enumerate(Ze_full):
-    centers.append(Z.center)
-    collection = PatchCollection([Z.polygon],  facecolor='lightgray', edgecolor='black', lw=0.5)
-    ax.add_collection(collection)
-ax.set_xlim(-8, 0.5)
-ax.set_ylim(-2.3, 2.4)
-
-centers = np.array(centers)
+# x_full = np.array(x_full)
+# xbar_full = np.array(xbar_full)
+# e_full = np.array(e_full)
 
 
-plt.annotate('$x_0$',xy=(x_full[0,0]+0.05,x_full[0,1]+0.05),xytext=(x_full[0,:] + 0.5),
-                arrowprops=dict(arrowstyle='-|>', fc="k", ec="k", lw=1.),
-                bbox=dict(pad=0, facecolor="none", edgecolor="none"))
+# fig, ax = plt.subplots()
+# colors = cm.gray(np.linspace(0, 1, len(Ze_full)))
+
+# centers = []
+# for idx, Z in enumerate(Ze_full):
+#     centers.append(Z.center)
+#     collection = PatchCollection([Z.polygon],  facecolor='lightgray', edgecolor='black', lw=0.5)
+#     ax.add_collection(collection)
+# ax.set_xlim(-8, 0.5)
+# ax.set_ylim(-2.3, 2.4)
+
+# centers = np.array(centers)
 
 
-plt.annotate(f'$x_{t+1}$',xy=(x_full[-1,0]-0.05,x_full[-1,1]-0.05),xytext=(x_full[-1,:] - 0.5),
-                arrowprops=dict(arrowstyle='-|>', fc="k", ec="k", lw=1.),
-                bbox=dict(pad=0, facecolor="none", edgecolor="none"))
-plt.plot(x_full[:,0], x_full[:,1], linestyle='dashdot', marker='x', color='black', linewidth=0.7)
-plt.plot(centers[:,0], centers[:,1], linestyle='solid', color='black', linewidth=0.15)
+# plt.annotate('$x_0$',xy=(x_full[0,0]+0.05,x_full[0,1]+0.05),xytext=(x_full[0,:] + 0.5),
+#                 arrowprops=dict(arrowstyle='-|>', fc="k", ec="k", lw=1.),
+#                 bbox=dict(pad=0, facecolor="none", edgecolor="none"))
 
 
-plt.grid()
-plt.show()
-import pdb
-pdb.set_trace()
+# plt.annotate(f'$x_{t+1}$',xy=(x_full[-1,0]-0.05,x_full[-1,1]-0.05),xytext=(x_full[-1,:] - 0.5),
+#                 arrowprops=dict(arrowstyle='-|>', fc="k", ec="k", lw=1.),
+#                 bbox=dict(pad=0, facecolor="none", edgecolor="none"))
+# plt.plot(x_full[:,0], x_full[:,1], linestyle='dashdot', marker='x', color='black', linewidth=0.7)
+# plt.plot(centers[:,0], centers[:,1], linestyle='solid', color='black', linewidth=0.15)
+
+
+# plt.grid()
+# plt.show()
+# import pdb
+# pdb.set_trace()
 
 x_simplified = [x0]
 xbar_simplified = [x_simplified[-1].copy()]
