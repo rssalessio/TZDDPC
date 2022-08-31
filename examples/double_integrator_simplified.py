@@ -72,7 +72,7 @@ xbar_full = [x_full[-1].copy()]
 e_full = [np.zeros_like(x_full[-1])]
 Ze_full = [Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))) + x_full[-1]]
 
-szddpc.build_problem(2, loss_callback, constraints_callback)
+szddpc.build_problem_simplified(1, 5, loss_callback, constraints_callback)
 
 for t in range(total_steps):
     result, v, xbark, Zek = szddpc.solve(
