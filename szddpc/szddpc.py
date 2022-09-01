@@ -123,9 +123,9 @@ class SZDDPC(object):
         self.Mdelta: MatrixZonotope = self.Mdata + (-1 * delta)
 
         # Reduce order
-        self.Mdata = self.Mdata.reduce(1)#max(1, int(.1 * self.Mdata.order)))
-        self.MdataK = self.MdataK.reduce(1)#max(1, int(.1 * self.MdataK.order)))
-        self.Mdelta = self.Mdelta.reduce(1)#max(1, int(.1 * self.Mdelta.order)))
+        self.Mdata = self.Mdata.reduce(1)
+        self.MdataK = self.MdataK.reduce(1)
+        self.Mdelta = self.Mdelta.reduce(1)
 
         return self.theta, self.Mdata
 
@@ -162,18 +162,10 @@ class SZDDPC(object):
         A, B = self.Mdata.center[:, :self.dim_x], self.Mdata.center[:, self.dim_x:]
         Acl = A + B @ self.theta.K
 
-        beta_x = cp.Variable(shape=(horizon, self.zonotopes.X.num_generators))
-        beta_u = cp.Variable(shape=(horizon, self.zonotopes.U.num_generators))
-
         constraints = [
-            beta_u >= -1.,
-            beta_u <= 1.,
-            beta_x >= -1,
-            beta_x <= 1,
-            ubar == np.array([self.zonotopes.U.center] * horizon) + (beta_u @ self.zonotopes.U.generators.T),
-            xbar[1:] == np.array([self.zonotopes.X.center] * horizon) + (beta_x @ self.zonotopes.X.generators.T),
             xbar[0] == xbar0,
-            ubar == xbar[:-1] @ self.theta.K.T + v
+            ubar == xbar[:-1] @ self.theta.K.T + v,
+            xbar[1:] ==  xbar[:-1] @ Acl.T + v @ B.T
         ]
 
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
@@ -198,7 +190,6 @@ class SZDDPC(object):
             Zx: Interval = (Ze[-1]+ xbar[k]).interval
             Zu: Interval = (Ze[-1] * self.theta.K + ubar[k]).interval
             constraints_k = [
-                xbar[k+1] == A @ xbar[k] + B @ ubar[k],
                 Zx.right_limit <= self.zonotopes.X.interval.right_limit,
                 Zx.left_limit >= self.zonotopes.X.interval.left_limit,
                 Zu.right_limit <=  self.zonotopes.U.interval.right_limit,
@@ -280,18 +271,10 @@ class SZDDPC(object):
         A, B = self.Mdata.center[:, :self.dim_x], self.Mdata.center[:, self.dim_x:]
         Acl = A + B @ self.theta.K
 
-        beta_x = cp.Variable(shape=(horizon, self.zonotopes.X.num_generators))
-        beta_u = cp.Variable(shape=(horizon, self.zonotopes.U.num_generators))
-
         constraints = [
-            beta_u >= -1.,
-            beta_u <= 1.,
-            beta_x >= -1,
-            beta_x <= 1,
-            ubar == np.array([self.zonotopes.U.center] * horizon) + (beta_u @ self.zonotopes.U.generators.T),
-            xbar[1:] == np.array([self.zonotopes.X.center] * horizon) + (beta_x @ self.zonotopes.X.generators.T),
             xbar[0] == xbar0,
-            ubar == xbar[:-1] @ self.theta.K.T + v
+            ubar == xbar[:-1] @ self.theta.K.T + v,
+            xbar[1:] ==  xbar[:-1] @ Acl.T + v @ B.T
         ]
 
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
@@ -308,9 +291,10 @@ class SZDDPC(object):
             else:
                 Ze_new_term1.append(self.MdataK * Ze_new_term1[-1])
 
-            noise_term =  Z_noise[max(0, k-k0)]
+            start_idx = max(0, k-k0)
+            noise_term =  Z_noise[start_idx]
             for j in range(1, min(k, k0)):
-                noise_term = self.MdataK * noise_term + Z_noise[k-k0+j]
+                noise_term = self.MdataK * noise_term + Z_noise[start_idx + j]
 
             Ze_new_term2.append(noise_term)
 
@@ -320,7 +304,6 @@ class SZDDPC(object):
             Zx: Interval = (Ze[-1]+ xbar[k]).interval
             Zu: Interval = (Ze[-1] * self.theta.K + ubar[k]).interval
             constraints_k = [
-                xbar[k+1] == A @ xbar[k] + B @ ubar[k],
                 Zx.right_limit <= self.zonotopes.X.interval.right_limit,
                 Zx.left_limit >= self.zonotopes.X.interval.left_limit,
                 Zu.right_limit <=  self.zonotopes.U.interval.right_limit,
