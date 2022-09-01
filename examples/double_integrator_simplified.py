@@ -50,7 +50,7 @@ eps = [0.1] * horizon
 # Define zonotopes and generate data
 X0 = Zonotope([-5, -2], 1e-5 * np.eye(dim_x))
 U = Zonotope([0], 1*np.ones((1,1)))
-W = Zonotope(np.zeros(dim_x), 1e-1 * np.array([[1, 0.5], [0.5, 1]]))
+W = Zonotope(np.zeros(dim_x), 0.05* np.array([[1, 0.5], [0.5, 1]]))
 X = Zonotope([-2, -1], 2*np.diag([4,3]))
 Zsigma = [Zonotope(np.zeros(dim_x), eps_k* np.eye(dim_x)) for eps_k in eps]
 
@@ -72,7 +72,7 @@ xbar_full = [x_full[-1].copy()]
 e_full = [np.zeros_like(x_full[-1])]
 Ze_full = [Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))) + x_full[-1]]
 
-szddpc.build_problem_simplified(1, 5, loss_callback, constraints_callback)
+szddpc.build_problem_simplified(2, 5, loss_callback, constraints_callback)
 
 for t in range(total_steps):
     result, v, xbark, Zek = szddpc.solve(
