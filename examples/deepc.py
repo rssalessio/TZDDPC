@@ -11,7 +11,7 @@ from pydeepc import DeePC
 from pydeepc.utils import Data
 from utils import generate_trajectories
 from pydatadrivenreachability import Zonotope
-from constants_system import A,B,C,D, X0, U, W, X, sys, dim_x, dim_u, loss_callback, constraints_callback
+from ignored.constants_system import A,B,C,D, X0, U, W, X, sys, dim_x, dim_u, loss_callback, constraints_callback
 
 
 # DeePC paramters

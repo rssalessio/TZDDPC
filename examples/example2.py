@@ -11,45 +11,40 @@ from szddpc import SZDDPC, Data, SystemZonotopes
 from utils import generate_trajectories
 from pyzonotope import Zonotope
 
-# Define the loss function
-def loss_callback(u: cp.Variable, y: cp.Variable) -> Expression:
-    horizon, M, P = u.shape[0], u.shape[1], y.shape[1]
-    ref = np.array([[1,0,0,0]]*horizon)
-    # import pdb
-    # pdb.set_trace()
-    # Sum_t ||y_t - r_t||^2
+def loss_callback(u: cp.Variable, x: cp.Variable) -> cp.Expression:
+    horizon, dim_u, dim_x = u.shape[0], u.shape[1], x.shape[1]
+
     cost = 0
     for i in range(horizon):
-        cost += 1*cp.norm(y[i,0] - 1)
-    return  cost #100*cp.sum(cp.norm(y[1:] - ref, p=2, axis=1))
+        cost += cp.norm(x[i,1] - 1) +  1e-2*cp.norm(u[i], p=1)
+    return  cost
 
-# Define additional constraints
-def constraints_callback(u: cp.Variable, y: cp.Variable) -> List[Constraint]:
-    horizon, M, P = u.shape[0], u.shape[1], y.shape[1]
+
+def constraints_callback(u: cp.Variable, x: cp.Variable) -> List[Constraint]:
+    horizon, dim_u, dim_x = u.shape[0], u.shape[1], x.shape[1]
     # Define a list of additional input/output constraints
-    return []
+    return []#x >= -2, x <= 4, u >= -6, u <= 6.]
 
 
-# Plant
-# In this example we consider the three-pulley 
-# system analyzed in the original VRFT paper:
-# 
-# "Virtual reference feedback tuning: 
-#      a direct method for the design offeedback controllers"
-# -- Campi et al. 2003
-
+A = np.array(
+    [[-1, -4, 0, 0, 0],
+     [4, -1, 0, 0, 0],
+     [0, 0, -3, 1, 0],
+     [0, 0, -1, -3, 0],
+     [0, 0, 0, 0, -2]])
+B = np.ones((5, 1))
+dim_x, dim_u = B.shape
 dt = 0.05
-num = [0.28261, 0.50666]
-den = [1, -1.41833, 1.58939, -1.31608, 0.88642]
-sys = scipysig.TransferFunction(num, den, dt=dt).to_ss()
-dim_x, dim_u = sys.B.shape
+A,B,C,D,_ = scipysig.cont2discrete(system=(A,B,np.eye(dim_x),0*B), dt = dt)
+sys = scipysig.StateSpace(A,B,C,D)
 
 
 # Define zonotopes and generate data
-X0 = Zonotope([0] * dim_x, 0. * np.ones((dim_x,1)))
-U = Zonotope([1] * dim_u, 3 * np.ones((dim_u,1)))
-W = Zonotope([0] * dim_x, 0.1 * np.ones((dim_x, 1)))
-X = Zonotope([1] * dim_x, 2*np.ones((dim_x, 1)))
+X0 = Zonotope([0] * dim_x, 0 * np.diag([1] * dim_x))
+U = Zonotope([-20] * dim_u,  60 * np.diag([1] * dim_u))
+W = Zonotope([0] * dim_x, 1e-1* np.ones((dim_x, 1)))
+X = Zonotope([1] * dim_x, 3*np.diag(np.ones(dim_x)))
+
 zonotopes = SystemZonotopes(X0, U, X, W)
 
 num_trajectories = 1
@@ -71,16 +66,17 @@ Ze = [Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))) + x[-1]]
 
 szddpc.build_problem(2, loss_callback, constraints_callback)
 
-for t in range(40):
+for t in range(100):
     result, v, xbark, Zek = szddpc.solve(
         xbar[-1],
         e[-1],
         verbose=False
     )
-    print(f'[{t}] x: {x[-1]} - xbar: {xbar[-1]} - v: {v[0]}')
+    
 
     xbar.append(xbark[1])
     u = szddpc.theta.K @ x[-1] + v[0]
+    print(f'[{t}] x: {x[-1]} - xbar: {xbar[-1]} - v: {v[0]} - u: {u} - ubar: {szddpc.theta.K @ xbar[-1] + v[0]} - Ke: {szddpc.theta.K @ e[-1]} - Kx {szddpc.theta.K @ x[-1] }')
     x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W.sample()
     x.append(x_next.flatten())
     e.append(x[-1] - xbar[-1])
