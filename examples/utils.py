@@ -25,6 +25,8 @@ def generate_trajectories(
     dim_x, dim_u = sys.B.shape
     total_samples = num_steps * num_trajectories
     u = U.sample(total_samples).reshape((num_trajectories, num_steps, dim_u))
+    W_vertices = W.compute_vertices()
+    num_W_vertices = len(W_vertices)
 
     # Simulate system
     X = np.zeros((num_trajectories, num_steps, dim_x))
@@ -32,7 +34,7 @@ def generate_trajectories(
     for j in range(num_trajectories):
         X[j, 0, :] = X0.sample()
         for i in range(1, num_steps):
-            X[j, i, :] = sys.A @ X[j, i - 1, :] +  np.squeeze(sys.B * u[j, i - 1]) + W.sample()
+            X[j, i, :] = sys.A @ X[j, i - 1, :] +  np.squeeze(sys.B * u[j, i - 1]) + W_vertices[np.random.choice(num_W_vertices)]# W.sample()
 
             # We assume C = I
             Y[j, i, :] = X[j, i, :]

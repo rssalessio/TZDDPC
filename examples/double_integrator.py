@@ -13,6 +13,7 @@ from utils import generate_trajectories
 from pyzonotope import Zonotope
 from matplotlib.collections import PatchCollection
 import matplotlib.cm as cm
+from pyzpc import ZPC, Data as DataZPC, SystemZonotopes as ZonotopesZPC
 np.random.seed(25)
 
 
@@ -29,7 +30,7 @@ def loss_callback(u: cp.Variable, x: cp.Variable) -> Expression:
 def constraints_callback(u: cp.Variable, x: cp.Variable) -> List[Constraint]:
     horizon, dim_u, dim_x = u.shape[0], u.shape[1], x.shape[1]
     # Define a list of additional input/output constraints
-    return [x[:,1] <= 2]
+    return [] #x[:,1] <= 2]
 
 # Double integrator
 A = np.array([[1, 1], [0, 1]])
@@ -47,14 +48,18 @@ horizon = min(10, total_steps)
 X0 = Zonotope([-5, -2], 0 * np.eye(dim_x))
 U = Zonotope([0], 1*np.ones((1,1)))
 W = Zonotope(np.zeros(dim_x), 0.1* np.array([[1, 0.5], [0.5, 1]]))
-X = Zonotope([-2, -1], 2*np.diag([4,3]))
+X = Zonotope([-4, 0], np.diag([5,2.5]))
 zonotopes = SystemZonotopes(X0, U, X, W)
 
+W_vertices = W.compute_vertices()
+num_W_vertices = len(W_vertices)
+print(f'Vertices of Zw: {W_vertices}')
 
 data = generate_trajectories(sys, X0, U, W, num_trajectories, num_steps_per_trajectory)
 x0 = X0.sample().flatten()
 
-# Build DPC
+
+# Build TZDDPC
 szddpc = SZDDPC(data)
 szddpc.build_zonotopes_theta(zonotopes)
 
@@ -76,7 +81,7 @@ for t in range(total_steps):
 
     xbar.append(xbark[1])
     u = szddpc.theta.K @ x[-1] + v[0]
-    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W.sample()
+    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) +  W_vertices[np.random.choice(num_W_vertices)]
     x.append(x_next.flatten())
     e.append(x[-1] - xbar[-1])
     
@@ -93,7 +98,7 @@ xbar = [x[-1].copy()]
 e = [np.zeros_like(x[-1])]
 Ze = [Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))) + x[-1]]
 
-szddpc.build_problem_simplified(1, 5, loss_callback, constraints_callback)
+szddpc.build_problem_simplified(1, 4, loss_callback, constraints_callback)
 
 for t in range(total_steps):
     result, v, xbark, Zek = szddpc.solve(
@@ -105,7 +110,7 @@ for t in range(total_steps):
 
     xbar.append(xbark[1])
     u = szddpc.theta.K @ x[-1] + v[0]
-    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W.sample()
+    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W_vertices[np.random.choice(num_W_vertices)]
     x.append(x_next.flatten())
     e.append(x[-1] - xbar[-1])
     
@@ -123,11 +128,31 @@ for t in range(total_steps):
 
     xbar.append(xbark[1])
     u = szddpc.theta.K @ x[-1]
-    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W.sample()
+    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W_vertices[np.random.choice(num_W_vertices)]
     x.append(x_next.flatten())
 
 x_lqr = np.array(x)
 
+
+# BUILD ZPC
+print('BUILDING ZPC')
+zpc_zonotopes = ZonotopesZPC(X0, U, X, W, Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))), Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))))
+zpc = ZPC(DataZPC(data.u, data.x))
+
+problem = zpc.build_problem(zpc_zonotopes, 2, loss_callback, constraints_callback)
+x = [x0]
+Ze = []
+for n in range(total_steps):
+    print(f'Solving step {n}')
+
+    result, info = zpc.solve(x[-1], verbose=True,warm_start=True)
+    u = info['u_optimal']
+    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u[0]) + W_vertices[np.random.choice(num_W_vertices)]
+    x.append(x_next.flatten())
+    print(info['reachable_set'])
+    #Ze.append(Zonotope(Zek[:, 0], Zek[:, 1:]) + xbar[-1])
+
+x_zpc = np.array(x)
 
 fig, ax = plt.subplots(figsize=(12,6))
 
@@ -140,23 +165,28 @@ for idx, Z in enumerate(Ze_full):
     Z = Ze_simplified[idx]
     collection = PatchCollection([Z.reduce(min(3, Z.order)).polygon],  facecolor='lightsalmon', edgecolor='black', lw=0.5)
     ax.add_collection(collection)
-ax.set_xlim(-8, 0.5)
-ax.set_ylim(-2.3, 2.4)
+ax.set_xlim(-9.2, 1.2)
+ax.set_ylim(-2.7, 2.7)
 
 centers = np.array(centers)
+
+d = np.linspace(-10,10,300)
+xd,yd = np.meshgrid(d,d)
+plt.imshow( ((xd<=-9) | (yd<=-2.5) |  (xd>=1)  | (yd>=2.5)).astype(int) , 
+                extent=(xd.min(),xd.max(),yd.min(),yd.max()),origin="lower", cmap="Greys", alpha = 0.4)
 
 
 plt.annotate('$t=0$',xy=(x_full[0,0]+0.05,x_full[0,1]+0.05),xytext=(x_full[0,:] + 0.5),
                 arrowprops=dict(arrowstyle='-|>', fc="k", ec="k", lw=1.),
-                bbox=dict(pad=0, facecolor="none", edgecolor="none"))
+                bbox=dict(pad=0, facecolor="none", edgecolor="none"), fontsize=20)
 
 
-plt.annotate(f'$t={t+1}$',xy=(x_simplified[-1,0]-0.05,x_simplified[-1,1]-0.05),xytext=(x_simplified[-1,:] - 0.7),
+plt.annotate(f'$t={t+1}$',xy=(x_simplified[-1,0]-0.05,x_simplified[-1,1]-0.05),xytext=(x_simplified[-1,:] - 0.95),
                 arrowprops=dict(arrowstyle='-|>', fc="k", ec="k", lw=1.),
-                bbox=dict(pad=0, facecolor="none", edgecolor="none"))
+                bbox=dict(pad=0, facecolor="none", edgecolor="none"), fontsize=20)
 line1, = plt.plot(x_full[:,0], x_full[:,1], linestyle='solid', marker='x', color='black', linewidth=0.7,label='TZDDPC - $x_t$')
 line2, = plt.plot(x_simplified[:,0], x_simplified[:,1], linestyle='dashed', marker='o', color='black', linewidth=0.7,label='Simplified TZDDPC - $x_t$')
-#line3, = plt.plot(x_lqr[:,0], x_lqr[:,1], linestyle='dotted', marker='v', color='red', linewidth=0.7,label='LQR')
+line3, = plt.plot(x_zpc[:,0], x_zpc[:,1], linestyle='dotted', marker='v', color='red', linewidth=0.7,label='ZPC')
 #plt.plot(centers[:,0], centers[:,1], linestyle='solid', color='black', linewidth=0.15)
 plt.xlabel('$x_1$', horizontalalignment='right', x=.95)
 plt.ylabel('$x_2$', horizontalalignment='right', y=.95)
@@ -166,8 +196,10 @@ plt.legend(fancybox = True, facecolor="whitesmoke",
                 line1,
                 Patch(color='lightsalmon', label='Simplified TZDDPC - $\\bar{\\mathcal{Z}}_{e,t}$'),
                 line2,
-                #line3
+                line3
             ], loc='lower right')
+
+
 #fig.tight_layout(rect=[0, 0, 1, 0.95])
 plt.grid()
 plt.savefig('double_integrator.pdf',bbox_inches='tight')

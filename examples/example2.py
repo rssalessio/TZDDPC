@@ -16,14 +16,14 @@ def loss_callback(u: cp.Variable, x: cp.Variable) -> cp.Expression:
 
     cost = 0
     for i in range(horizon):
-        cost += cp.norm(x[i,1] - 1) +  1e-2*cp.norm(u[i], p=1)
+        cost += cp.norm(x[i,1] - 1,p=2) +  1e-1*cp.norm(u[i] - 8, p=2)
     return  cost
 
 
 def constraints_callback(u: cp.Variable, x: cp.Variable) -> List[Constraint]:
     horizon, dim_u, dim_x = u.shape[0], u.shape[1], x.shape[1]
     # Define a list of additional input/output constraints
-    return [x[:, 1] <= 10, x[:,1] >=0]#x >= -2, x <= 4, u >= -6, u <= 6.]
+    return []#[x[:, 1] <= 10, x[:,1] >=0]#x >= -2, x <= 4, u >= -6, u <= 6.]
 
 
 A = np.array(
@@ -40,11 +40,12 @@ sys = scipysig.StateSpace(A,B,C,D)
 
 
 # Define zonotopes and generate data
-X0 = Zonotope([0] * dim_x, 0 * np.diag([1] * dim_x))
-U = Zonotope([7] * dim_u,  19 * np.diag([1] * dim_u))
-W = Zonotope([0] * dim_x, 0.01* np.ones((dim_x, 1)))
+X0 = Zonotope([-2, 4, 3, -2.5, 5.5], 0 * np.diag([1] * dim_x))
+U = Zonotope([7] * dim_u,  100 * np.diag([1] * dim_u))
+W = Zonotope([0] * dim_x, 0.1* np.ones((dim_x, 1)))
 X = Zonotope([1] * dim_x, 100 * np.ones((dim_x, 1)))
-
+W_vertices = W.compute_vertices()
+num_W_vertices = len(W_vertices)
 zonotopes = SystemZonotopes(X0, U, X, W)
 
 num_trajectories = 1
@@ -77,7 +78,7 @@ for t in range(100):
     xbar.append(xbark[1])
     u = szddpc.theta.K @ x[-1] + v[0]
     print(f'[{t}] x: {x[-1]} - xbar: {xbar[-1]} - v: {v[0]} - u: {u} - ubar: {szddpc.theta.K @ xbar[-1] + v[0]} - Ke: {szddpc.theta.K @ e[-1]} - Kx {szddpc.theta.K @ x[-1] }')
-    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W.sample()
+    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W_vertices[np.random.choice(num_W_vertices)]# W.sample()
     x.append(x_next.flatten())
     e.append(x[-1] - xbar[-1])
     
@@ -85,8 +86,7 @@ for t in range(100):
     Ze.append(Zonotope(Zek[:, 0], Zek[:, 1:]) + xbar[-1])
 
 x = np.array(x)
-for i in range(dim_x):
-    plt.plot(x[:,i], label=f'x{i}')
+plt.plot(x[:,1], label=f'$x_1$')
 
 plt.grid()
 plt.legend()
