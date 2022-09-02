@@ -118,6 +118,17 @@ e_simplified = np.array(e)
 Ze_simplified = Ze
 
 
+x = [x0]
+for t in range(total_steps):
+
+    xbar.append(xbark[1])
+    u = szddpc.theta.K @ x[-1]
+    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W.sample()
+    x.append(x_next.flatten())
+
+x_lqr = np.array(x)
+
+
 fig, ax = plt.subplots(figsize=(12,6))
 
 centers = []
@@ -143,17 +154,19 @@ plt.annotate('$t=0$',xy=(x_full[0,0]+0.05,x_full[0,1]+0.05),xytext=(x_full[0,:] 
 plt.annotate(f'$t={t+1}$',xy=(x_simplified[-1,0]-0.05,x_simplified[-1,1]-0.05),xytext=(x_simplified[-1,:] - 0.7),
                 arrowprops=dict(arrowstyle='-|>', fc="k", ec="k", lw=1.),
                 bbox=dict(pad=0, facecolor="none", edgecolor="none"))
-line1, = plt.plot(x_full[:,0], x_full[:,1], linestyle='dotted', marker='x', color='black', linewidth=0.7,label='TZDDPC - $x_t$')
+line1, = plt.plot(x_full[:,0], x_full[:,1], linestyle='solid', marker='x', color='black', linewidth=0.7,label='TZDDPC - $x_t$')
 line2, = plt.plot(x_simplified[:,0], x_simplified[:,1], linestyle='dashed', marker='o', color='black', linewidth=0.7,label='Simplified TZDDPC - $x_t$')
+#line3, = plt.plot(x_lqr[:,0], x_lqr[:,1], linestyle='dotted', marker='v', color='red', linewidth=0.7,label='LQR')
 #plt.plot(centers[:,0], centers[:,1], linestyle='solid', color='black', linewidth=0.15)
-plt.xlabel('$x_1$', horizontalalignment='right', x=.9)
-plt.ylabel('$x_2$', horizontalalignment='right', y=.9)
+plt.xlabel('$x_1$', horizontalalignment='right', x=.95)
+plt.ylabel('$x_2$', horizontalalignment='right', y=.95)
 plt.legend(fancybox = True, facecolor="whitesmoke", 
             handles = [
                 Patch(color='lightgray', label='TZDDPC - $\\bar{\\mathcal{Z}}_{e,t}$'),
-                Patch(color='lightsalmon', label='Simplified TZDDPC - $\\bar{\\mathcal{Z}}_{e,t}$'),
                 line1,
+                Patch(color='lightsalmon', label='Simplified TZDDPC - $\\bar{\\mathcal{Z}}_{e,t}$'),
                 line2,
+                #line3
             ], loc='lower right')
 #fig.tight_layout(rect=[0, 0, 1, 0.95])
 plt.grid()

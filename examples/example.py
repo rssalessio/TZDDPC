@@ -11,6 +11,8 @@ from szddpc import SZDDPC, Data, SystemZonotopes
 from utils import generate_trajectories
 from pyzonotope import Zonotope
 
+from scipy.linalg import solve_discrete_are
+
 # Define the loss function
 def loss_callback(u: cp.Variable, y: cp.Variable) -> Expression:
     horizon, M, P = u.shape[0], u.shape[1], y.shape[1]
@@ -20,7 +22,7 @@ def loss_callback(u: cp.Variable, y: cp.Variable) -> Expression:
     # Sum_t ||y_t - r_t||^2
     cost = 0
     for i in range(horizon):
-        cost += 1*cp.norm(y[i,0] - 1)
+        cost += 1*cp.norm(y[i,0])
     return  cost #100*cp.sum(cp.norm(y[1:] - ref, p=2, axis=1))
 
 # Define additional constraints
@@ -48,7 +50,7 @@ dim_x, dim_u = sys.B.shape
 # Define zonotopes and generate data
 X0 = Zonotope([0] * dim_x, 0. * np.ones((dim_x,1)))
 U = Zonotope([1] * dim_u, 3 * np.ones((dim_u,1)))
-W = Zonotope([0] * dim_x, 0.1 * np.ones((dim_x, 1)))
+W = Zonotope([0] * dim_x, 1e-1* np.ones((dim_x, 1)))
 X = Zonotope([1] * dim_x, 2*np.ones((dim_x, 1)))
 zonotopes = SystemZonotopes(X0, U, X, W)
 
@@ -84,14 +86,25 @@ for t in range(40):
     x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W.sample()
     x.append(x_next.flatten())
     e.append(x[-1] - xbar[-1])
-    
+    szddpc.theta.K 
     Zek = Zek.Z.value
     Ze.append(Zonotope(Zek[:, 0], Zek[:, 1:]) + xbar[-1])
 
-x = np.array(x)
-for i in range(dim_x):
-    plt.plot(x[:,i], label=f'x{i}')
 
+x_tzddpc = np.array(x)
+x = [x0]
+
+Acenter, Bcenter = szddpc.Mdata.center[:, :dim_x], szddpc.Mdata.center[:, dim_x:]
+P = solve_discrete_are(Acenter, Bcenter, np.eye(dim_x), np.eye(dim_u))
+Klqr = -np.linalg.inv(np.eye(dim_u) + Bcenter.T @ P @ Bcenter) @ (Bcenter.T @ P @ Acenter)
+for t in range(40):
+    u = Klqr @ x[-1]# + 1
+    x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W.sample()
+    x.append(x_next.flatten())
+
+x_lqr = np.array(x)
+plt.plot(x_tzddpc[:,0], label=f'TZDDPC - $x_1$')
+plt.plot(x_lqr[:,0], label=f'LQR - $x_1$')
 plt.grid()
 plt.legend()
 plt.show()

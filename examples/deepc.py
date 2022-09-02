@@ -10,16 +10,46 @@ from cvxpy.constraints.constraint import Constraint
 from pydeepc import DeePC
 from pydeepc.utils import Data
 from utils import generate_trajectories
-from pydatadrivenreachability import Zonotope
-from ignored.constants_system import A,B,C,D, X0, U, W, X, sys, dim_x, dim_u, loss_callback, constraints_callback
+from pyzonotope import Zonotope
 
+def loss_callback(u: cp.Variable, x: cp.Variable) -> cp.Expression:
+    horizon, dim_u, dim_x = u.shape[0], u.shape[1], x.shape[1]
+
+    cost = 0
+    for i in range(horizon):
+        cost += cp.norm(x[i,1] - 1) +  1e-2*cp.norm(u[i], p=1)
+    return  cost
+
+
+def constraints_callback(u: cp.Variable, x: cp.Variable) -> List[Constraint]:
+    horizon, dim_u, dim_x = u.shape[0], u.shape[1], x.shape[1]
+    # Define a list of additional input/output constraints
+    return [x[:, 1] <= 10, x[:,1]>=1]#x >= -2, x <= 4, u >= -6, u <= 6.]
+
+A = np.array(
+    [[-1, -4, 0, 0, 0],
+     [4, -1, 0, 0, 0],
+     [0, 0, -3, 1, 0],
+     [0, 0, -1, -3, 0],
+     [0, 0, 0, 0, -2]])
+B = np.ones((5, 1))
+dim_x, dim_u = B.shape
+dt = 0.05
+A,B,C,D,_ = scipysig.cont2discrete(system=(A,B,np.eye(dim_x),0*B), dt = dt)
+sys = scipysig.StateSpace(A,B,C,D)
+
+# Define zonotopes and generate data
+X0 = Zonotope([0] * dim_x, 0 * np.diag([1] * dim_x))
+U = Zonotope([7] * dim_u,  19 * np.diag([1] * dim_u))
+W = Zonotope([0] * dim_x, 0.01* np.ones((dim_x, 1)))
+X = Zonotope([1] * dim_x, 100 * np.ones((dim_x, 1)))
 
 # DeePC paramters
-T_INI = 5                   # Size of the initial set of data
-T_DATA = 1000               # Number of data points used to estimate the system
+T_INI = 1                   # Size of the initial set of data
+T_DATA = 400               # Number of data points used to estimate the system
 HORIZON = 50                # Horizon length
-LAMBDA_G_REGULARIZER = 10 # g regularizer (see DeePC paper, eq. 8)
-LAMBDA_Y_REGULARIZER = 1    # y regularizer (see DeePC paper, eq. 8)
+LAMBDA_G_REGULARIZER = 1 # g regularizer (see DeePC paper, eq. 8)
+LAMBDA_Y_REGULARIZER = 0    # y regularizer (see DeePC paper, eq. 8)
 
 
 data = generate_trajectories(sys, X0, U, W, 1, T_DATA)

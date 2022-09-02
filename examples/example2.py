@@ -23,7 +23,7 @@ def loss_callback(u: cp.Variable, x: cp.Variable) -> cp.Expression:
 def constraints_callback(u: cp.Variable, x: cp.Variable) -> List[Constraint]:
     horizon, dim_u, dim_x = u.shape[0], u.shape[1], x.shape[1]
     # Define a list of additional input/output constraints
-    return []#x >= -2, x <= 4, u >= -6, u <= 6.]
+    return [x[:, 1] <= 10, x[:,1] >=0]#x >= -2, x <= 4, u >= -6, u <= 6.]
 
 
 A = np.array(
@@ -41,9 +41,9 @@ sys = scipysig.StateSpace(A,B,C,D)
 
 # Define zonotopes and generate data
 X0 = Zonotope([0] * dim_x, 0 * np.diag([1] * dim_x))
-U = Zonotope([-20] * dim_u,  60 * np.diag([1] * dim_u))
-W = Zonotope([0] * dim_x, 1e-1* np.ones((dim_x, 1)))
-X = Zonotope([1] * dim_x, 3*np.diag(np.ones(dim_x)))
+U = Zonotope([7] * dim_u,  19 * np.diag([1] * dim_u))
+W = Zonotope([0] * dim_x, 0.01* np.ones((dim_x, 1)))
+X = Zonotope([1] * dim_x, 100 * np.ones((dim_x, 1)))
 
 zonotopes = SystemZonotopes(X0, U, X, W)
 

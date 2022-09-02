@@ -24,11 +24,11 @@ CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',
                   '#f781bf', '#a65628', '#984ea3',
                   '#999999', '#e41a1c', '#dede00']
 
-TITLE_SIZE = 20
-LEGEND_SIZE = 14
+TITLE_SIZE = 26
+LEGEND_SIZE = 16
 TICK_SIZE = 14
-AXIS_TITLE = TITLE_SIZE
-AXIS_LABEL = TITLE_SIZE
+AXIS_TITLE = 30
+AXIS_LABEL = 30
 FONT_SIZE = TITLE_SIZE
 plt.rc('font', size=FONT_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=AXIS_TITLE)     # fontsize of the axes title
