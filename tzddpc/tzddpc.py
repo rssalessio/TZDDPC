@@ -5,10 +5,10 @@ from cvxpy.expressions.expression import Expression
 from cvxpy.constraints.constraint import Constraint
 from pyzonotope import MatrixZonotope, concatenate_zonotope, Zonotope, CVXZonotope, Interval
 from pydatadrivenreachability import compute_LTI_matrix_zonotope
-from szddpc.objects import OptimizationProblem, DataDrivenDataset, SystemZonotopes, Theta, Data
-from szddpc.utils import compute_theta
+from tzddpc.objects import OptimizationProblem, DataDrivenDataset, SystemZonotopes, Theta, Data
+from tzddpc.utils import compute_theta
 
-class SZDDPC(object):
+class TZDDPC(object):
     optimization_problem: Union[OptimizationProblem,None] = None
     dataset: DataDrivenDataset
     zonotopes: SystemZonotopes

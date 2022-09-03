@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Tuple
 from pyzonotope import MatrixZonotope
-from szddpc.objects import Theta
+from tzddpc.objects import Theta
 import cvxpy as cp
 import dccp
 

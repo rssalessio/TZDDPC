@@ -2,11 +2,11 @@ from setuptools import setup, find_packages
 from os import path
 
 
-setup(name = 'SZDPC',
+setup(name = 'TZDDPC',
     packages=find_packages(),
     version = '0.0.3',
-    description = 'Python library Scenario-Based Zonotopic Data-Driven Predictive Control',
-    url = 'https://github.com/rssalessio/SZDPC',
+    description = 'Python library Tube-Based Zonotopic Data-Driven Predictive Control',
+    url = 'https://github.com/rssalessio/TZDDPC',
     author = 'Alessio Russo',
     author_email = 'alessior@kth.se',
     install_requires=['numpy', 'scipy', 'cvxpy', 'dccp', 'pyzonotope', 'pydatadrivenreachability'],
