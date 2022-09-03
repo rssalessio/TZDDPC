@@ -8,7 +8,8 @@ from matplotlib.patches import Patch
 from typing import List
 from cvxpy.expressions.expression import Expression
 from cvxpy.constraints.constraint import Constraint
-from tzddpc import SZDDPC, Data, SystemZonotopes
+from tzddpc import TZDDPC, Data, SystemZonotopes
+import tzddpc
 from utils import generate_trajectories
 from pyzonotope import Zonotope
 from matplotlib.collections import PatchCollection
@@ -60,8 +61,8 @@ x0 = X0.sample().flatten()
 
 
 # Build TZDDPC
-szddpc = SZDDPC(data)
-szddpc.build_zonotopes_theta(zonotopes)
+tzddpc = TZDDPC(data)
+tzddpc.build_zonotopes_theta(zonotopes)
 
 
 x = [x0]
@@ -69,10 +70,10 @@ xbar = [x[-1].copy()]
 e = [np.zeros_like(x[-1])]
 Ze = [Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))) + x[-1]]
 
-szddpc.build_problem(3, loss_callback, constraints_callback)
+tzddpc.build_problem(3, loss_callback, constraints_callback)
 
 for t in range(total_steps):
-    result, v, xbark, Zek = szddpc.solve(
+    result, v, xbark, Zek = tzddpc.solve(
         xbar[-1],
         e[-1],
         verbose=False
@@ -80,7 +81,7 @@ for t in range(total_steps):
     print(f'[{t}] x: {x[-1]} - xbar: {xbar[-1]} - v: {v[0]}')
 
     xbar.append(xbark[1])
-    u = szddpc.theta.K @ x[-1] + v[0]
+    u = tzddpc.theta.K @ x[-1] + v[0]
     x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) +  W_vertices[np.random.choice(num_W_vertices)]
     x.append(x_next.flatten())
     e.append(x[-1] - xbar[-1])
@@ -98,10 +99,10 @@ xbar = [x[-1].copy()]
 e = [np.zeros_like(x[-1])]
 Ze = [Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))) + x[-1]]
 
-szddpc.build_problem_simplified(1, 4, loss_callback, constraints_callback)
+tzddpc.build_problem_simplified(1, 4, loss_callback, constraints_callback)
 
 for t in range(total_steps):
-    result, v, xbark, Zek = szddpc.solve(
+    result, v, xbark, Zek = tzddpc.solve(
         xbar[-1],
         e[-1],
         verbose=False
@@ -109,7 +110,7 @@ for t in range(total_steps):
     print(f'[{t}] x: {x[-1]} - xbar: {xbar[-1]} - v: {v[0]}')
 
     xbar.append(xbark[1])
-    u = szddpc.theta.K @ x[-1] + v[0]
+    u = tzddpc.theta.K @ x[-1] + v[0]
     x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W_vertices[np.random.choice(num_W_vertices)]
     x.append(x_next.flatten())
     e.append(x[-1] - xbar[-1])
@@ -127,7 +128,7 @@ x = [x0]
 for t in range(total_steps):
 
     xbar.append(xbark[1])
-    u = szddpc.theta.K @ x[-1]
+    u = tzddpc.theta.K @ x[-1]
     x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u) + W_vertices[np.random.choice(num_W_vertices)]
     x.append(x_next.flatten())
 
@@ -141,13 +142,12 @@ zpc = ZPC(DataZPC(data.u, data.x))
 
 problem = zpc.build_problem(zpc_zonotopes, 2, loss_callback, constraints_callback)
 x = [x0]
-Ze_zpc = []
+Ze_zpc = [Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))) + x[-1]]
 for n in range(total_steps):
     print(f'Solving step {n}')
 
     result, info = zpc.solve(x[-1], verbose=True,warm_start=True)
-    import pdb
-    pdb.set_trace()
+
     u = info['u_optimal']
     x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u[0]) + W_vertices[np.random.choice(num_W_vertices)]
     x.append(x_next.flatten())

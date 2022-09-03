@@ -1,4 +1,4 @@
-from .tzddpc import SZDDPC
+from .tzddpc import TZDDPC
 from .utils import (
     compute_theta,
     compute_A_B,
