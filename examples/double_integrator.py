@@ -8,7 +8,7 @@ from matplotlib.patches import Patch
 from typing import List
 from cvxpy.expressions.expression import Expression
 from cvxpy.constraints.constraint import Constraint
-from szddpc import SZDDPC, Data, SystemZonotopes
+from tzddpc import SZDDPC, Data, SystemZonotopes
 from utils import generate_trajectories
 from pyzonotope import Zonotope
 from matplotlib.collections import PatchCollection
@@ -141,15 +141,18 @@ zpc = ZPC(DataZPC(data.u, data.x))
 
 problem = zpc.build_problem(zpc_zonotopes, 2, loss_callback, constraints_callback)
 x = [x0]
-Ze = []
+Ze_zpc = []
 for n in range(total_steps):
     print(f'Solving step {n}')
 
     result, info = zpc.solve(x[-1], verbose=True,warm_start=True)
+    import pdb
+    pdb.set_trace()
     u = info['u_optimal']
     x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u[0]) + W_vertices[np.random.choice(num_W_vertices)]
     x.append(x_next.flatten())
-    print(info['reachable_set'])
+    Zval = info['reachable_set'][1].Z.value
+    Ze_zpc.append(Zonotope(Zval[:,0], Zval[:, 1:]))
     #Ze.append(Zonotope(Zek[:, 0], Zek[:, 1:]) + xbar[-1])
 
 x_zpc = np.array(x)
@@ -162,7 +165,7 @@ for idx, Z in enumerate(Ze_full):
     collection = PatchCollection([Z.reduce(min(3, Z.order)).polygon],  facecolor='lightgray', edgecolor='black', lw=0.5)
     ax.add_collection(collection)
 
-    Z = Ze_simplified[idx]
+    Z = Ze_zpc[idx]
     collection = PatchCollection([Z.reduce(min(3, Z.order)).polygon],  facecolor='lightsalmon', edgecolor='black', lw=0.5)
     ax.add_collection(collection)
 ax.set_xlim(-9.2, 1.2)

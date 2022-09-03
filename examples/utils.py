@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import StateSpace
 from pyzonotope import Zonotope
-from szddpc import Data
+from tzddpc import Data
 
 def generate_trajectories(
         sys: StateSpace,

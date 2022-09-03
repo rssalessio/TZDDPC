@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from typing import List
 from cvxpy.expressions.expression import Expression
 from cvxpy.constraints.constraint import Constraint
-from szddpc import SZDDPC, Data, SystemZonotopes
+from tzddpc import SZDDPC, Data, SystemZonotopes
 from utils import generate_trajectories
 from pyzonotope import Zonotope
 
