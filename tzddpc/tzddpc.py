@@ -156,21 +156,21 @@ class TZDDPC(object):
         v = cp.Variable(shape=(horizon, self.dim_u))
         xbar0 = cp.Parameter(shape=(self.dim_x))
         xbar = cp.Variable(shape=(horizon + 1, self.dim_x))
-        ubar = cp.Variable(shape=(horizon, self.dim_u))
+        # ubar = cp.Variable(shape=(horizon, self.dim_u))
 
         # Acl = A+BK
         A, B = self.Mdata.center[:, :self.dim_x], self.Mdata.center[:, self.dim_x:]
-        Acl = A + B @ self.theta.K
+        #Acl = A + B @ self.theta.K
 
         constraints = [
             xbar[0] == xbar0,
-            ubar == xbar[:-1] @ self.theta.K.T + v,
-            xbar[1:] ==  xbar[:-1] @ Acl.T + v @ B.T
+            # ubar == xbar[:-1] @ self.theta.K.T + v,
+            xbar[1:] ==  xbar[:-1] @ A.T + v @ B.T
         ]
 
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
 
-        XU = [CVXZonotope(cp.hstack((xbar[k], ubar[k])), np.zeros((self.dim_x + self.dim_u, 1))) for k in range(horizon)]
+        XU = [CVXZonotope(cp.hstack((xbar[k], v[k])), np.zeros((self.dim_x + self.dim_u, 1))) for k in range(horizon)]
         Ze_new_term1 = [self.MdataK * Ze[0] ]
         Z_noise = [self.Mdelta * XU[k] + self.zonotopes.W for k in range(horizon)]
         Ze_new_term2 = []
@@ -188,7 +188,7 @@ class TZDDPC(object):
         for k in range(horizon):
             print(f'Step {k}')
             Zx: Interval = (Ze[-1]+ xbar[k]).interval
-            Zu: Interval = (Ze[-1] * self.theta.K + ubar[k]).interval
+            Zu: Interval = (Ze[-1] * self.theta.K + v[k]).interval
             constraints_k = [
                 Zx.right_limit <= self.zonotopes.X.interval.right_limit,
                 Zx.left_limit >= self.zonotopes.X.interval.left_limit,
@@ -207,7 +207,7 @@ class TZDDPC(object):
             constraints.extend(constraints_k)
 
             
-        _constraints = build_constraints(ubar, xbar[1:]) if build_constraints is not None else (None, None)
+        _constraints = build_constraints(v, xbar[1:]) if build_constraints is not None else (None, None)
  
         for idx, constraint in enumerate(_constraints):
             if constraint is None or not isinstance(constraint, Constraint) or not constraint.is_dcp():
@@ -216,7 +216,7 @@ class TZDDPC(object):
         constraints.extend([] if _constraints is None else _constraints)
         
         # Build loss
-        _loss = build_loss(ubar, xbar[1:])
+        _loss = build_loss(v, xbar[1:])
         
         if _loss is None or not isinstance(_loss, Expression) or not _loss.is_dcp():
             raise Exception('Loss function is not defined or is not convex!')
@@ -265,21 +265,21 @@ class TZDDPC(object):
         v = cp.Variable(shape=(horizon, self.dim_u))
         xbar0 = cp.Parameter(shape=(self.dim_x))
         xbar = cp.Variable(shape=(horizon + 1, self.dim_x))
-        ubar = cp.Variable(shape=(horizon, self.dim_u))
+        #ubar = cp.Variable(shape=(horizon, self.dim_u))
 
         # Acl = A+BK
         A, B = self.Mdata.center[:, :self.dim_x], self.Mdata.center[:, self.dim_x:]
-        Acl = A + B @ self.theta.K
+        #Acl = A + B @ self.theta.K
 
         constraints = [
             xbar[0] == xbar0,
-            ubar == xbar[:-1] @ self.theta.K.T + v,
-            xbar[1:] ==  xbar[:-1] @ Acl.T + v @ B.T
+            #ubar == xbar[:-1] @ self.theta.K.T + v,
+            xbar[1:] ==  xbar[:-1] @ A.T + v @ B.T
         ]
 
         Ze: List[CVXZonotope] = [CVXZonotope(e0, np.zeros((self.dim_x, 1)))]
 
-        XU = [CVXZonotope(cp.hstack((xbar[k], ubar[k])), np.zeros((self.dim_x + self.dim_u, 1))) for k in range(horizon)]
+        XU = [CVXZonotope(cp.hstack((xbar[k], v[k])), np.zeros((self.dim_x + self.dim_u, 1))) for k in range(horizon)]
         Ze_new_term1 = [self.MdataK * Ze[0] ]
         Z_noise = [self.Mdelta * XU[k] + self.zonotopes.W for k in range(horizon)]
         Ze_new_term2 = []
@@ -302,7 +302,7 @@ class TZDDPC(object):
         for k in range(horizon):
             print(f'Step {k}')
             Zx: Interval = (Ze[-1]+ xbar[k]).interval
-            Zu: Interval = (Ze[-1] * self.theta.K + ubar[k]).interval
+            Zu: Interval = (Ze[-1] * self.theta.K + v[k]).interval
             constraints_k = [
                 Zx.right_limit <= self.zonotopes.X.interval.right_limit,
                 Zx.left_limit >= self.zonotopes.X.interval.left_limit,
@@ -321,7 +321,7 @@ class TZDDPC(object):
             constraints.extend(constraints_k)
 
             
-        _constraints = build_constraints(ubar, xbar[1:]) if build_constraints is not None else (None, None)
+        _constraints = build_constraints(v, xbar[1:]) if build_constraints is not None else (None, None)
  
         for idx, constraint in enumerate(_constraints):
             if constraint is None or not isinstance(constraint, Constraint) or not constraint.is_dcp():
@@ -330,7 +330,7 @@ class TZDDPC(object):
         constraints.extend([] if _constraints is None else _constraints)
         
         # Build loss
-        _loss = build_loss(ubar, xbar[1:])
+        _loss = build_loss(v, xbar[1:])
         
         if _loss is None or not isinstance(_loss, Expression) or not _loss.is_dcp():
             raise Exception('Loss function is not defined or is not convex!')
