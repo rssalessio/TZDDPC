@@ -156,6 +156,7 @@ class TZDDPC(object):
         v = cp.Variable(shape=(horizon, self.dim_u))
         xbar0 = cp.Parameter(shape=(self.dim_x))
         xbar = cp.Variable(shape=(horizon + 1, self.dim_x))
+        x = cp.Variable(shape=(horizon, self.dim_x))
         # ubar = cp.Variable(shape=(horizon, self.dim_u))
 
         # Acl = A+BK
@@ -193,7 +194,8 @@ class TZDDPC(object):
                 Zx.right_limit <= self.zonotopes.X.interval.right_limit,
                 Zx.left_limit >= self.zonotopes.X.interval.left_limit,
                 Zu.right_limit <=  self.zonotopes.U.interval.right_limit,
-                Zu.left_limit >= self.zonotopes.U.interval.left_limit
+                Zu.left_limit >= self.zonotopes.U.interval.left_limit,
+                x[k] == (Ze[-1]+ xbar[k]).center
             ]
 
             # Ze_new_term1 = self.MdataK * Ze[0] 
@@ -207,7 +209,7 @@ class TZDDPC(object):
             constraints.extend(constraints_k)
 
             
-        _constraints = build_constraints(v, xbar[1:]) if build_constraints is not None else (None, None)
+        _constraints = build_constraints(v, xbar) if build_constraints is not None else (None, None)
  
         for idx, constraint in enumerate(_constraints):
             if constraint is None or not isinstance(constraint, Constraint) or not constraint.is_dcp():
@@ -216,7 +218,7 @@ class TZDDPC(object):
         constraints.extend([] if _constraints is None else _constraints)
         
         # Build loss
-        _loss = build_loss(v, xbar[1:])
+        _loss = build_loss(v, x)
         
         if _loss is None or not isinstance(_loss, Expression) or not _loss.is_dcp():
             raise Exception('Loss function is not defined or is not convex!')
