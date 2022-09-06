@@ -145,17 +145,21 @@ x_lqr = np.array(x)
 
 # BUILD ZPC
 print('BUILDING ZPC')
-X = Zonotope([-4, 0], 1.5*np.diag([5,2.5]))
+X = Zonotope([-4, 0], 6*np.diag([5,2.5]))
 zpc_zonotopes = ZonotopesZPC(X0, U, X, W, Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))), Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))))
 zpc = ZPC(DataZPC(data.u, data.x))
 
 problem = zpc.build_problem(zpc_zonotopes, 2, loss_callback, constraints_callback)
 x = [x0]
 Ze_zpc = [Zonotope(np.zeros(dim_x), np.zeros((dim_x,1))) + x[-1]]
-for n in range(total_steps):
+for n in range(total_steps*3):
     print(f'Solving step {n}')
 
     result, info = zpc.solve(x[-1], verbose=False,warm_start=True)
+    print(problem.variables.y0.value)
+    print(problem.variables.s.value)
+    # import pdb
+    # pdb.set_trace()
 
     u = info['u_optimal']
     x_next = sys.A @ x[-1] +  np.squeeze(sys.B @ u[0]) + W_vertices[np.random.choice(num_W_vertices)]
@@ -177,8 +181,8 @@ for idx, Z in enumerate(Ze_full):
     Z = Ze_zpc[idx]
     collection = PatchCollection([Z.reduce(min(3, Z.order)).polygon],  facecolor='lightsalmon', edgecolor='black', lw=0.5)
     ax.add_collection(collection)
-ax.set_xlim(-9.2, 1.2)
-ax.set_ylim(-2.7, 2.7)
+ax.set_xlim(-9.2*5, 1.2*5)
+ax.set_ylim(-2.7*5, 2.7*5)
 
 centers = np.array(centers)
 
