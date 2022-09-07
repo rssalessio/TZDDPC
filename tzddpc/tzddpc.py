@@ -157,7 +157,7 @@ class TZDDPC(object):
         xbar0 = cp.Parameter(shape=(self.dim_x))
         xbar = cp.Variable(shape=(horizon + 1, self.dim_x))
         x = cp.Variable(shape=(horizon, self.dim_x))
-        # ubar = cp.Variable(shape=(horizon, self.dim_u))
+        u = cp.Variable(shape=(horizon, self.dim_u))
 
         # Acl = A+BK
         A, B = self.Mdata.center[:, :self.dim_x], self.Mdata.center[:, self.dim_x:]
@@ -185,7 +185,7 @@ class TZDDPC(object):
                 noise_term = self.MdataK * noise_term + Z_noise[j]
             Ze_new_term2.append(noise_term)
 
-
+        #regularizer = cp.max(cp.sum(cp.abs(Ze[-1].generators), axis=1))#.sum(axis=1)
         for k in range(horizon):
             print(f'Step {k}')
             Zx: Interval = (Ze[-1]+ xbar[k]).interval
@@ -195,7 +195,7 @@ class TZDDPC(object):
                 Zx.left_limit >= self.zonotopes.X.interval.left_limit,
                 Zu.right_limit <=  self.zonotopes.U.interval.right_limit,
                 Zu.left_limit >= self.zonotopes.U.interval.left_limit,
-                x[k] == (Ze[-1]+ xbar[k]).center
+                x[k] == (Ze[-1]).center,
             ]
 
             # Ze_new_term1 = self.MdataK * Ze[0] 
@@ -207,6 +207,7 @@ class TZDDPC(object):
             Ze.append(Ze_new)
 
             constraints.extend(constraints_k)
+            #regularizer += cp.max(cp.sum(cp.abs(Ze[-1].generators), axis=1))
 
             
         _constraints = build_constraints(v, xbar) if build_constraints is not None else (None, None)
@@ -218,7 +219,7 @@ class TZDDPC(object):
         constraints.extend([] if _constraints is None else _constraints)
         
         # Build loss
-        _loss = build_loss(v, x)
+        _loss = build_loss(u, xbar) #+ 1e9*cp.norm(x, p='fro')
         
         if _loss is None or not isinstance(_loss, Expression) or not _loss.is_dcp():
             raise Exception('Loss function is not defined or is not convex!')
@@ -434,6 +435,7 @@ class TZDDPC(object):
         for k in range(1,horizon):
             term_1.append(term_1[-1] * Acl + (self.zonotopes.W + Zsigma[k]))
 
+        regularizer = 0
         for k in range(horizon):
             # print(f'[Simplified] Step {k}')
             Zx: Interval = (Ze[-1]+ xbar[k]).interval
@@ -445,6 +447,8 @@ class TZDDPC(object):
                 Zu.right_limit <=  self.zonotopes.U.interval.right_limit,
                 Zu.left_limit >= self.zonotopes.U.interval.left_limit
             ]
+
+            regularizer += cp.sum(Ze[-1].sum())
 
             constraints.extend(constraints_k)
 
@@ -470,7 +474,7 @@ class TZDDPC(object):
         if _loss is None or not isinstance(_loss, Expression) or not _loss.is_dcp():
             raise Exception('Loss function is not defined or is not convex!')
 
-        problem_loss =_loss
+        problem_loss =_loss + regularizer
 
         # Solve problem
         objective = cp.Minimize(problem_loss)
