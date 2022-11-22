@@ -9,10 +9,12 @@ _License_: MIT
 
 ## Requirements
 
-To run the examples you need the following libraries: `numpy scipy cvxpy dccp pyzpc pyzonotope matplotlib`
+To run the examples you need the following libraries: `numpy scipy cvxpy dccp pyzpc pyzonotope matplotlib pydatadrivenreachability`
 
 - The `PyZPC` library can be found [here](https://github.com/rssalessio/PyZPC)
 - The `PyZonotope` library can be found [here](https://github.com/rssalessio/pyzonotope)
+- The `pydatadrivenreachability` library can be found [here](https://github.com/rssalessio/Py-Data-Driven-Reachability-Analysis)
+  
 
 ## Example
 
