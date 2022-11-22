@@ -1,1 +1,0 @@
-Error while solving the DeePC problem. Details: Solver 'MOSEK' failed. Try another solver, or solve with verbose=True for more information.

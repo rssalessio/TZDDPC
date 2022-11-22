@@ -19,7 +19,7 @@ import threading
 import pickle
 np.random.seed(25)
 
-
+k0 = 1
 # Define the loss function
 def loss_callback(u: cp.Variable, x: cp.Variable) -> Expression:
     horizon, dim_u, dim_x = u.shape[0], u.shape[1], x.shape[1]
@@ -184,11 +184,13 @@ if __name__ == '__main__':
     parser.add_argument("-ho", "--horizon", dest="horizon",
                         help="horizon", default=3, type=int)
         
-
+    parser.add_argument("-k0", "--k0", dest="k0",
+                        help="k0 value", default=1, type=int)
     args = parser.parse_args()
     method: str = args.method.upper()
     results = []
 
+    k0 = args.k0
     if (method == 'ZPC'):
         results = evaluate_method(simulateZPC,  args.horizon, args.n_evals, PERIOD_EVAL_MEMORY)
     elif (method == 'TZDDPC'):
@@ -198,11 +200,6 @@ if __name__ == '__main__':
     else:
         raise ValueError(f'Could not find method {args.method}')
     
-    with open(f'data_{method}2.pkl', 'wb') as f:
+    with open(f'data_{method}.pkl', 'wb') as f:
         pickle.dump(results, f, protocol = pickle.HIGHEST_PROTOCOL)
 
-    # fig, ax = plt.subplots(MAX_HORIZON, 2)
-    # for i in range(1, MAX_HORIZON+1):
-    #     ax[i-1][0].plot(results['time'][i])
-    #     ax[i-1][1].plot(results['memory'][i])
-    # plt.show()
