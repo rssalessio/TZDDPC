@@ -18,7 +18,7 @@ To run the examples you need the following libraries: `numpy scipy cvxpy dccp py
 
 To run the example, run the file `1.double_integrator_sim.py` in the folder `examples`. 
 <p align="center">
-  <img src="./examples/figures/figures/double_integrator.png" width="80%">
+  <img src="./examples/figures/double_integrator.png" width="80%">
 </p>
 
 ## Computational complexity
@@ -26,7 +26,7 @@ To run the example, run the file `1.double_integrator_sim.py` in the folder `exa
 To estimate the computational complexity, run the file `1.double_integrator_run_sim_computational_complexity.sh`, which will automatically run all the experiments. Use the notebook `1.double_integrator_results_computational_complexity.ipynb` to print the results.
 
 <p align="center">
-  <img src="./examples/figures/figures/complexity.png" width="80%">
+  <img src="./examples/figures/complexity.png" width="80%">
 </p>
 
 ## Other examples
