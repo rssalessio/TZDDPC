@@ -108,7 +108,7 @@ def simulateSimplifiedTZDDPC(x0, horizon):
     xbar = [x[-1].copy()]
     e = [np.zeros_like(x[-1])]
 
-    tzddpc.build_problem_simplified(1, horizon, loss_callback, constraints_callback)
+    tzddpc.build_problem_simplified(k0, horizon, loss_callback, constraints_callback)
 
     for t in range(1):
         result, v, xbark, Zek = tzddpc.solve(
@@ -200,6 +200,7 @@ if __name__ == '__main__':
     else:
         raise ValueError(f'Could not find method {args.method}')
     
-    with open(f'data_{method}.pkl', 'wb') as f:
+    other = '' if method != 'STZDDPC' else str(k0)
+    with open(f'results/data_{method}{other}.pkl', 'wb') as f:
         pickle.dump(results, f, protocol = pickle.HIGHEST_PROTOCOL)
 
