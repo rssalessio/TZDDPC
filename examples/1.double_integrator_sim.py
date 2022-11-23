@@ -57,14 +57,6 @@ num_W_vertices = len(W_vertices)
 print(f'Vertices of Zw: {W_vertices}')
 
 data = generate_trajectories(sys, X0, U, W, num_trajectories, num_steps_per_trajectory)
-# fig, ax = plt.subplots(1,2)
-# ax[0].plot(data.u)
-# ax[1].plot(data.x)
-# ax[0].set_title('u')
-# ax[1].set_title('x')
-# ax[0].grid()
-# ax[1].grid()
-# plt.show()
 x0 = X0.sample().flatten()
 
 
@@ -218,7 +210,7 @@ plt.legend(fancybox = True, facecolor="whitesmoke",
 
 #fig.tight_layout(rect=[0, 0, 1, 0.95])
 plt.grid()
-plt.savefig('double_integrator.pdf',bbox_inches='tight')
+plt.savefig('figures/double_integrator.pdf',bbox_inches='tight')
 
 
 plt.show()
